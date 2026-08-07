@@ -1,0 +1,16 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.DS_Store
+
+# Virtualenvs — never publish one.
+.venv/
+venv/
+
+# looper mission records: contracts, per-iteration worker records and epic
+# journals. Development evidence, not documentation, so it stays local —
+# running a mission here recreates it. `.looper/knowledge/` is deliberately
+# NOT ignored: the glossary there is this project's ubiquitous-language
+# contract, mandated by AGENTS.md and referenced throughout the code.
+.looper/epics/

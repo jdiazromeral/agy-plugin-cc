@@ -1,0 +1,20 @@
+{
+  "findings": [
+    {
+      "title": "[P0] Fix incorrect arithmetic operation in add function",
+      "body": "The `add` function has been changed to subtract `b` from `a` instead of adding them. This contradicts both the function's name and its docstring (`\"\"\"Add two numbers.\"\"\"`), and will result in incorrect calculations whenever `b != 0`.",
+      "confidence_score": 1.0,
+      "priority": 0,
+      "code_location": {
+        "absolute_file_path": "/tmp/captures/run3-repo/calc.py",
+        "line_range": {
+          "start": 3,
+          "end": 3
+        }
+      }
+    }
+  ],
+  "overall_correctness": "patch is incorrect",
+  "overall_explanation": "The patch fundamentally breaks the `add` function by changing its core operation from addition to subtraction, which violates the function's intended and documented behavior.",
+  "overall_confidence_score": 1.0
+}

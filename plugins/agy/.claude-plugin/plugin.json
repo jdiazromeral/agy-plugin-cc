@@ -1,0 +1,13 @@
+{
+  "name": "agy",
+  "version": "0.1.0",
+  "description": "Use agy from Claude Code to review code or delegate tasks.",
+  "author": {
+    "name": "Javi Díaz",
+    "url": "https://github.com/jdiazromeral"
+  },
+  "license": "AGPL-3.0-or-later",
+  "homepage": "https://github.com/jdiazromeral/agy-plugin-cc",
+  "repository": "https://github.com/jdiazromeral/agy-plugin-cc",
+  "keywords": ["code-review", "antigravity", "agy", "delegation", "gemini"]
+}

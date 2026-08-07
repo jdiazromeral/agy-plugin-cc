@@ -1,0 +1,36 @@
+name: check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# What this can and cannot catch. `make check` is hermetic: it drives
+# tests/fake_agy.py, never a real `agy`, and needs no network or credentials.
+# So it catches ordinary regressions — and nothing else. It cannot catch the
+# failure mode that has actually bitten this project three times: agy's real
+# behavior drifting away from what the fake pretends it does. Only
+# `make check-live` catches that, it needs an authenticated agy, and no
+# hosted runner has one. Run it by hand after every agy upgrade.
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # The floor the tooling claims to support, and a current release.
+        python-version: ["3.9", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Show versions
+        run: |
+          python3 --version
+          git --version
+
+      - name: Tests and lint
+        run: make check

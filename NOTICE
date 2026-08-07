@@ -1,0 +1,55 @@
+agy-plugin-cc
+Copyright 2026 Javi Díaz
+
+This project as a whole is licensed under the GNU Affero General Public
+License, version 3 or later (AGPL-3.0-or-later). See the LICENSE file at the
+root of this repository for the full text.
+
+It incorporates material licensed under the Apache License, Version 2.0
+(listed below). Apache-2.0 is one-way compatible with (A)GPLv3: that material
+may be combined into this AGPL-licensed work, and the combined work is
+distributed under the AGPL. The incorporated files themselves remain
+available under Apache-2.0 from their upstream sources on the terms stated
+below — relicensing the combination does not, and cannot, revoke that. The
+practical consequence, stated plainly: material can flow from those
+Apache-2.0 projects into this one, but nothing from this repository can flow
+back into them.
+
+This project vendors two code-review system prompts, both obtained under
+the Apache License, Version 2.0 (https://www.apache.org/licenses/LICENSE-2.0):
+
+- `plugins/agy/agents/agy-review/agent.md`, derived from `openai/codex`'s
+  review prompt — captured via a third-party gist mirror, then verified
+  2026-07-28 against current upstream at
+  `codex-rs/prompts/templates/review/rubric.md` (blob
+  85e89cb7eeadb97fa9e4868d2b9977c87225506d). See that file's own PROVENANCE
+  note for the diff evidence and the adaptations made.
+- `plugins/agy/agents/agy-adversarial-review/agent.md`, ported from
+  `openai/codex-plugin-cc`'s own `plugins/codex/prompts/adversarial-review.md`
+  and `plugins/codex/commands/adversarial-review.md`, read directly from a
+  clone of that repository. Its output schema deliberately differs from
+  upstream's own prompt (see that file's PROVENANCE note) to stay compatible
+  with the parsing this repo already shares with `agy-review`.
+
+`agy-plugin-cc` is itself a deliberate port of `openai/codex-plugin-cc`
+(https://github.com/openai/codex-plugin-cc), distributed under the Apache
+License, Version 2.0. The Claude-facing surface, the per-repo state dir, the
+job model, and the git diff-sizing logic in this repository are adapted from
+that project.
+
+The Apache-2.0 terms below govern the incorporated upstream material and are
+reproduced per section 4(d) of that licence:
+
+  Copyright the openai/codex and openai/codex-plugin-cc contributors.
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use these files except in compliance with the License.
+  You may obtain a copy of the License at
+
+      https://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
