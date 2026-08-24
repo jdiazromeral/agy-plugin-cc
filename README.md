@@ -58,7 +58,7 @@ defects and recorded here so they aren't re-derived:
   command execution path for a directory marketplace like this one.
 - **The cache is real and IS version-keyed**, off
   `.claude-plugin/marketplace.json`'s `metadata.version` /
-  `plugins[].version` (currently `0.1.0`). `claude plugin marketplace
+  `plugins[].version` (currently `0.2.0`). `claude plugin marketplace
   update` alone will **not** refresh a stale cache while that version
   string stays the same — only `/plugin uninstall` followed by `/plugin
   install` does. This is a note about install/update mechanics for anyone
