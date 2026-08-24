@@ -45,8 +45,10 @@ above — it is a different rule, satisfying the same underlying invariant:
 
     THE INVARIANT: user-supplied text is never slash-expanded.
 
-`_probe_command`'s prompt is never user text. It is one of five hardcoded,
-plugin-authored constants (`_READ_ONLY_COMMANDS` below) — the caller cannot
+`_probe_command`'s prompt is never user text. It is one of ten hardcoded,
+plugin-authored constants (`_READ_ONLY_COMMANDS` below; 1.1.11 added
+`/usage`, `/credits`, `/model`, `/effort`, `/skills`; 1.1.12 added
+`/permissions`, `/hooks`, `/help`, `/changelog`, `/config`) — the caller cannot
 reach this function with an arbitrary string; `_probe_command` raises
 `ValueError` on anything outside that whitelist. Sending `--disable-slash-
 commands` here would not protect a user's text (there is none) — it would
@@ -104,7 +106,18 @@ import subprocess
 # enforces this as a hard whitelist (raises ValueError otherwise) so the
 # "prompt is always a plugin-authored constant, never user text" invariant
 # holds structurally, not just by convention.
-_READ_ONLY_COMMANDS = ("usage", "credits", "model", "effort", "skills")
+_READ_ONLY_COMMANDS = (
+    "usage",
+    "credits",
+    "model",
+    "effort",
+    "skills",
+    "permissions",
+    "hooks",
+    "help",
+    "changelog",
+    "config",
+)
 
 # These commands answer immediately (duration_seconds: 0 in every capture
 # used to build this module) — this is a generous ceiling for a slow
@@ -170,7 +183,9 @@ def _run_probe(agy_path, command, model=None, effort=None, timeout=_PROBE_TIMEOU
     it does not)."""
     cmd = _probe_command(agy_path, command, model=model, effort=effort)
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+        result = subprocess.run(
+            cmd, stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=timeout
+        )
     except (OSError, subprocess.TimeoutExpired) as exc:
         return {"state": "unknown", "command": command, "data": None, "detail": str(exc)}
 
@@ -277,7 +292,9 @@ def _run_models(agy_path, timeout=_MODELS_TIMEOUT_SECONDS):
     the specific baseline id it already knows."""
     cmd = _models_command(agy_path)
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+        result = subprocess.run(
+            cmd, stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=timeout
+        )
     except (OSError, subprocess.TimeoutExpired) as exc:
         return {"state": "unknown", "models": None, "detail": str(exc)}
 

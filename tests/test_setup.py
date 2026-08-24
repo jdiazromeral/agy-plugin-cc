@@ -10,6 +10,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 COMPANION = REPO_ROOT / "plugins" / "agy" / "scripts" / "agy_companion.py"
@@ -865,5 +866,41 @@ class NormalizeUsageGroupsTest(unittest.TestCase):
         self.assertEqual(groups[0]["buckets"][0]["remaining_fraction"], 0.5)
 
 
+class SetupSubprocessDevnullStdinTest(unittest.TestCase):
+    def test_probe_version_passes_devnull_stdin(self):
+        with mock.patch.object(
+            setup_module.subprocess, "run",
+            return_value=mock.MagicMock(returncode=0, stdout="1.1.19\n", stderr="")
+        ) as mock_run:
+            setup_module._probe_version("agy")
+
+        mock_run.assert_called_once()
+        _args, kwargs = mock_run.call_args
+        self.assertEqual(kwargs.get("stdin"), subprocess.DEVNULL)
+
+    def test_probe_agents_passes_devnull_stdin(self):
+        with mock.patch.object(
+            setup_module.subprocess, "run",
+            return_value=mock.MagicMock(returncode=0, stdout="code-auditor\n", stderr="")
+        ) as mock_run:
+            setup_module._probe_agents("agy")
+
+        mock_run.assert_called_once()
+        _args, kwargs = mock_run.call_args
+        self.assertEqual(kwargs.get("stdin"), subprocess.DEVNULL)
+
+    def test_probe_review_bind_passes_devnull_stdin(self):
+        with mock.patch.object(
+            setup_module.subprocess, "run",
+            return_value=mock.MagicMock(returncode=1, stdout="", stderr="invalid model")
+        ) as mock_run:
+            setup_module._probe_review_bind("agy")
+
+        mock_run.assert_called_once()
+        _args, kwargs = mock_run.call_args
+        self.assertEqual(kwargs.get("stdin"), subprocess.DEVNULL)
+
+
 if __name__ == "__main__":
     unittest.main()
+

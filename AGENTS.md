@@ -230,6 +230,21 @@ Verified empirically against `agy` 1.1.6 on 2026-07-24. Full evidence lives in
   (`companion.launch._print_timeout_arg`), and every background launch passes
   an explicit `"24h"` (`companion.launch._BACKGROUND_PRINT_TIMEOUT_ARG`) so
   the plugin's "no ceiling" promise is actually true.
+- **`stdin=subprocess.DEVNULL` is required for all foreground `subprocess.run` calls.**
+  When running in automated, piped, or subagent test environments where `stdin`
+  is not a TTY, `agy agents`, `agy models`, and print mode probes block
+  waiting on input unless `stdin=subprocess.DEVNULL` is passed explicitly.
+  Omitting it causes intermittent 10s–20s timeouts. Setting it drops probe
+  latency to ~0.07s–0.40s.
+- **Read-only slash command probes expanded to 10 commands in 1.1.12.**
+  In addition to `usage`, `credits`, `model`, `effort`, `skills` (1.1.11),
+  `agy 1.1.12` added non-interactive print mode answers for `/permissions`,
+  `/hooks`, `/help`, `/changelog`, `/config` — verified live against 1.1.19,
+  2026-08-24.
+- **`agy models` progress banner moved to stderr in 1.1.12+**.
+  In 1.1.11 `Fetching available models...` was emitted to stdout; in 1.1.12+
+  the progress text moved to stderr and stdout contains exclusively the
+  tab-separated model rows.
 
 ## Never
 

@@ -193,7 +193,12 @@ def _numstat(cwd, diff_args):
 def _run_git(cwd, args):
     try:
         return subprocess.run(
-            ["git"] + args, cwd=cwd, capture_output=True, text=True, timeout=10
+            ["git"] + args,
+            cwd=cwd,
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            text=True,
+            timeout=10,
         )
     except FileNotFoundError:
         raise GitTargetError("git is not installed. Install Git and retry.")

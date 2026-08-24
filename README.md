@@ -4,12 +4,12 @@ Use the **Antigravity CLI (`agy`)** from inside Claude Code — for code review,
 to delegate tasks and track them in the background.
 
 > **Status: pre-alpha.** All seven commands below are implemented and covered
-> by an offline test suite (323 tests against a fake `agy` on `PATH`, never
+> by an offline test suite (399 tests against a fake `agy` on `PATH`, never
 > the real binary — `make check` prints the authoritative count; this number
 > is a snapshot and goes stale, as it already has twice).
 >
 > **All seven commands have been run end to end against a real, authenticated
-> `agy`, re-verified on 1.1.11** (2026-08-07, via `make check-live`):
+> `agy`, re-verified on 1.1.19** (2026-08-24, via `make check-live` / `agy_companion.py setup`):
 > `/agy:review` and `/agy:adversarial-review` producing schema-conforming
 > findings; `/agy:delegate` fresh, `--resume`, and `--background`;
 > `/agy:status` against a job both mid-flight and finished; `/agy:result`

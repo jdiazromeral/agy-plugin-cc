@@ -213,7 +213,11 @@ def _stream_json_state(version, supported):
 def _probe_version(agy_path):
     try:
         result = subprocess.run(
-            [agy_path, "--version"], capture_output=True, text=True, timeout=10
+            [agy_path, "--version"],
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            text=True,
+            timeout=10,
         )
     except (OSError, subprocess.TimeoutExpired):
         return None
@@ -227,7 +231,11 @@ def _probe_agents(agy_path):
     agy 1.1.6 gives us about auth state (see _NOT_AUTHENTICATED_MARKERS)."""
     try:
         result = subprocess.run(
-            [agy_path, "agents"], capture_output=True, text=True, timeout=10
+            [agy_path, "agents"],
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            text=True,
+            timeout=10,
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
         detail = str(exc)
@@ -323,6 +331,7 @@ def _probe_review_bind(agy_path):
                 subprocess.run(
                     cmd,
                     cwd=str(workspace),
+                    stdin=subprocess.DEVNULL,
                     capture_output=True,
                     text=True,
                     timeout=_BIND_PROBE_TIMEOUT_SECONDS,

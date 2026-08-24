@@ -67,12 +67,32 @@ class ProbeCommandVectorTest(unittest.TestCase):
             probe._probe_command("agy", "clear")
 
     def test_every_documented_read_only_command_is_accepted(self):
-        for command in ("usage", "credits", "model", "effort", "skills"):
+        for command in (
+            "usage",
+            "credits",
+            "model",
+            "effort",
+            "skills",
+            "permissions",
+            "hooks",
+            "help",
+            "changelog",
+            "config",
+        ):
             cmd = probe._probe_command("agy", command)
             self.assertEqual(cmd[2], "/" + command)
 
 
 class RunProbeSuccessTest(unittest.TestCase):
+    def test_run_probe_passes_devnull_stdin(self):
+        envelope = '{"command":{"name":"model","data":{"id":"m"}}}'
+        with mock.patch.object(probe.subprocess, "run", return_value=_result(stdout=envelope)) as mock_run:
+            probe._run_probe("agy", "model")
+
+        mock_run.assert_called_once()
+        _args, kwargs = mock_run.call_args
+        self.assertEqual(kwargs.get("stdin"), subprocess.DEVNULL)
+
     def test_ok_state_returns_the_typed_command_data(self):
         envelope = (
             '{"conversation_id":"","status":"SUCCESS","response":"",'
@@ -233,6 +253,15 @@ class ParseModelsTest(unittest.TestCase):
 
 
 class RunModelsTest(unittest.TestCase):
+    def test_run_models_passes_devnull_stdin(self):
+        stdout = "gemini-x\tGemini X\n"
+        with mock.patch.object(probe.subprocess, "run", return_value=_result(stdout=stdout)) as mock_run:
+            probe._run_models("agy")
+
+        mock_run.assert_called_once()
+        _args, kwargs = mock_run.call_args
+        self.assertEqual(kwargs.get("stdin"), subprocess.DEVNULL)
+
     def test_ok_state_returns_parsed_models(self):
         stdout = "Fetching available models...\ngemini-x\tGemini X\ngemini-y\tGemini Y\n"
         with mock.patch.object(probe.subprocess, "run", return_value=_result(stdout=stdout)):
