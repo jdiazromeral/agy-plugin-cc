@@ -37,6 +37,11 @@ from companion.status import (
 
 HELP = "Show the stored result of a finished agy job for this repo."
 
+# Self-declaring marker read by tools/lint.py's model-invocation check —
+# read-only, never writes to the reviewed repo, so no command reaching it
+# is required to declare disable-model-invocation.
+DANGEROUS = False
+
 # STATUS_ERROR (bare "error") is a foreground `delegate` job's own stored
 # terminal status on a nonzero exit (delegate.py's `_run_live_delegate`) —
 # distinct from STATUS_SILENT_FALLBACK / STATUS_CRASHED, which are DERIVED

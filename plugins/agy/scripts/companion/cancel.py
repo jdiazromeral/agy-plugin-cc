@@ -25,6 +25,13 @@ from companion.status import STATUS_CANCELLED, STATUS_RUNNING, build_job_row
 
 HELP = "Cancel a running background agy job for this repo."
 
+# Self-declaring marker read by tools/lint.py's model-invocation check
+# (never a second list inside lint.py itself): destructive, since a run
+# terminates a job's process and mutates its record to cancelled. Any
+# command file whose body reaches this subcommand must declare
+# disable-model-invocation: true in its own frontmatter.
+DANGEROUS = True
+
 # How long agy gets to shut down politely before we stop asking. Measured
 # against a real 1.1.8 killed mid-stream: 0.16s from SIGTERM to exit (see
 # AGENTS.md). 5s is ~30x that — headroom for a loaded machine, not a guess

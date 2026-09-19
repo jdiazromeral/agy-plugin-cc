@@ -2,6 +2,7 @@
 description: Cancel a running background agy job for this repo
 argument-hint: '[--repo <path>] [job-id]'
 allowed-tools: Bash(python3:*)
+disable-model-invocation: true
 ---
 
 Run:

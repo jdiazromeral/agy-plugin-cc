@@ -65,6 +65,11 @@ from companion.stream_events import parse_event_stream
 
 HELP = "Show active and recent agy jobs for this repo, derived from their persistent logs."
 
+# Self-declaring marker read by tools/lint.py's model-invocation check —
+# read-only, never writes to the reviewed repo, so no command reaching it
+# is required to declare disable-model-invocation.
+DANGEROUS = False
+
 STATUS_RUNNING = "running"
 STATUS_COMPLETED = "completed"
 STATUS_ERROR = "error"

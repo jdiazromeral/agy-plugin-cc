@@ -246,6 +246,28 @@ Verified empirically against `agy` 1.1.6 on 2026-07-24. Full evidence lives in
   In 1.1.11 `Fetching available models...` was emitted to stdout; in 1.1.12+
   the progress text moved to stderr and stdout contains exclusively the
   tab-separated model rows.
+- **Both manifests' `$schema` URL is `json.schemastore.org`, not
+  `anthropic.com`.** Three sources checked 2026-09-19: (1) `claude`
+  2.1.278's own `plugin init` scaffolding embeds
+  `https://anthropic.com/claude-code/plugin.schema.json` into a fresh
+  `plugin.json` — `curl -s -o /dev/null -w '%{http_code}\n' -L` against it
+  returns **404**. (2) The official
+  `anthropics/claude-plugins-official` marketplace repo's own
+  `.claude-plugin/marketplace.json` carries
+  `https://anthropic.com/claude-code/marketplace.schema.json` — same
+  pattern, also **404** live. (3) Claude Code's own docs
+  (`code.claude.com/docs/en/plugins-reference`) give
+  `https://json.schemastore.org/claude-code-plugin-manifest.json` as the
+  canonical example, and schemastore.org has a sibling
+  `claude-code-marketplace.json` for the marketplace manifest — both
+  verified **200** (`-L`; they 302 once before landing) and both are real,
+  well-formed JSON Schema matching each manifest's actual shape. Chose the
+  schemastore.org URLs for both manifests: `$schema` is editor-only
+  metadata Claude Code ignores at load time, so a URL that 404s is
+  strictly worse than no `$schema` at all, and the live schemastore.org
+  URLs are the docs' own example for exactly this field. `claude plugin
+  validate .` and `claude plugin validate plugins/agy` both still pass
+  with the field added (confirmed against 2.1.278).
 
 ## Never
 

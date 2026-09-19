@@ -2,6 +2,7 @@
 description: Delegate a task to agy through a thin forwarding subagent (foreground or --background, fresh or --resume)
 argument-hint: '[--repo <path>] [--background] [--resume|--fresh] [--model <model>] [--effort <effort>] [--timeout <seconds>] <task for agy>'
 allowed-tools: Bash(python3:*), Agent
+disable-model-invocation: true
 ---
 
 Invoke the `agy-delegate` subagent via the `Agent` tool, forwarding the raw

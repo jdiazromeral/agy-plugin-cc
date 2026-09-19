@@ -21,6 +21,11 @@ from companion.launch import _print_timeout_arg
 
 HELP = "Check whether agy is installed, authenticated, and which agents are registered."
 
+# Self-declaring marker read by tools/lint.py's model-invocation check —
+# read-only, never writes to the reviewed repo, so no command reaching it
+# is required to declare disable-model-invocation.
+DANGEROUS = False
+
 _VERSION_RE = re.compile(r"(\d+\.\d+\.\d+)")
 
 # One supported binary, no dual code path: an agy below this floor is not a
