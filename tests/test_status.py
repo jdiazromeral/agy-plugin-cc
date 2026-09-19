@@ -13,10 +13,12 @@ import tempfile
 import unittest
 from datetime import datetime, timezone
 from pathlib import Path
+from unittest import mock
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "plugins" / "agy" / "scripts"))
 
+from companion import status  # noqa: E402
 from companion.agy_log import find_conversation  # noqa: E402
 from companion.status import (  # noqa: E402
     STATUS_CANCELLED,
@@ -407,6 +409,194 @@ class BuildJobRowTest(unittest.TestCase):
         )
 
 
+class OrphanDerivationTest(unittest.TestCase):
+    """`orphan` per `.looper/knowledge/glossary.md`'s `modernize-127` entry:
+    a **job** whose session has ended while its process is still alive,
+    established by checking the recorded pid, never assumed from the
+    session's absence alone. All pid liveness here is mocked
+    (`status._pid_is_alive`) rather than trusting the host's real process
+    table — see test_cancel.py's own postmortem on a CI runner where pid 7
+    was a live kernel thread; the same risk applies to any invented pid
+    used directly in a test.
+    """
+
+    def _job(self, tmp, session_id, pid=4242, status_field="running", output_text=None):
+        log_file = Path(tmp) / "job.log"
+        log_file.write_text(_RUNNING_LOG, encoding="utf-8")
+        job = {
+            "id": "job-orphan-candidate", "kind": "review", "status": status_field,
+            "log_file": str(log_file), "session_id": session_id, "pid": pid,
+            "created_at": "2026-01-01T00:00:00+00:00",
+        }
+        if output_text is not None:
+            output_file = Path(tmp) / "job.out"
+            output_file.write_text(output_text, encoding="utf-8")
+            job["output_file"] = str(output_file)
+        return job
+
+    def test_different_session_and_alive_pid_is_orphan(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            job = self._job(tmp, session_id="sess-old")
+            with mock.patch.object(status, "_pid_is_alive", return_value=True):
+                row = build_job_row(job, current_session_id="sess-current")
+
+        self.assertTrue(row["orphan"])
+
+    def test_different_session_but_dead_pid_is_not_orphan(self):
+        """The glossary's 'never assumed from the session's absence' guard:
+        a session mismatch alone proves nothing — a **zombie job** (process
+        already gone) must not be reported as orphaned."""
+        with tempfile.TemporaryDirectory() as tmp:
+            job = self._job(tmp, session_id="sess-old")
+            with mock.patch.object(status, "_pid_is_alive", return_value=False):
+                row = build_job_row(job, current_session_id="sess-current")
+
+        self.assertFalse(row["orphan"])
+
+    def test_same_session_is_never_orphan_even_if_the_pid_is_alive(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            job = self._job(tmp, session_id="sess-current")
+            with mock.patch.object(status, "_pid_is_alive", return_value=True):
+                row = build_job_row(job, current_session_id="sess-current")
+
+        self.assertFalse(row["orphan"])
+
+    def test_no_recorded_session_id_is_never_orphan(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            job = self._job(tmp, session_id=None)
+            with mock.patch.object(status, "_pid_is_alive", return_value=True):
+                row = build_job_row(job, current_session_id="sess-current")
+
+        self.assertFalse(row["orphan"])
+
+    def test_no_current_session_still_derives_orphan_from_a_live_pid(self):
+        """The 'or no longer active' half of the acceptance criteria: with
+        no current session at all (e.g. env var unset), a session-tagged,
+        genuinely-alive job still derives as orphan."""
+        with tempfile.TemporaryDirectory() as tmp:
+            job = self._job(tmp, session_id="sess-old")
+            with mock.patch.object(status, "_pid_is_alive", return_value=True):
+                row = build_job_row(job, current_session_id=None)
+
+        self.assertTrue(row["orphan"])
+
+    def test_terminal_job_is_never_orphan_regardless_of_pid_liveness(self):
+        """Orphan is layered on top of STATUS_RUNNING only, mirroring
+        `stall`'s own discipline (see `_compute_stall`) — a completed job's
+        process is not 'still alive' in any sense build_job_row observes."""
+        with tempfile.TemporaryDirectory() as tmp:
+            job = self._job(
+                tmp, session_id="sess-old",
+                output_text=_result_event_ndjson("SUCCESS", response="ok"),
+            )
+            with mock.patch.object(status, "_pid_is_alive", return_value=True):
+                row = build_job_row(job, current_session_id="sess-current")
+
+        self.assertEqual(row["status"], STATUS_COMPLETED)
+        self.assertFalse(row["orphan"])
+
+    def test_stored_cancelled_status_is_never_orphan(self):
+        """A stored terminal status short-circuits derivation entirely
+        (see build_job_row's docstring) — cancelled is terminal, so it must
+        never be reported as orphaned even with an alive pid and a
+        mismatched session."""
+        with tempfile.TemporaryDirectory() as tmp:
+            job = self._job(tmp, session_id="sess-old", status_field="cancelled")
+            with mock.patch.object(status, "_pid_is_alive", return_value=True):
+                row = build_job_row(job, current_session_id="sess-current")
+
+        self.assertEqual(row["status"], STATUS_CANCELLED)
+        self.assertFalse(row["orphan"])
+
+    def test_omitting_current_session_id_reads_it_from_the_environment(self):
+        """The default (no explicit `current_session_id` argument) must
+        resolve the current session the same way `run()` does — from
+        SESSION_ID_ENV — not silently treat it as 'no current session'."""
+        with tempfile.TemporaryDirectory() as tmp:
+            job = self._job(tmp, session_id="sess-current")
+            had_env = status.SESSION_ID_ENV in os.environ
+            old_env = os.environ.get(status.SESSION_ID_ENV)
+            os.environ[status.SESSION_ID_ENV] = "sess-current"
+            try:
+                with mock.patch.object(status, "_pid_is_alive", return_value=True):
+                    row = build_job_row(job)
+            finally:
+                if had_env:
+                    os.environ[status.SESSION_ID_ENV] = old_env
+                else:
+                    os.environ.pop(status.SESSION_ID_ENV, None)
+
+        self.assertFalse(row["orphan"])
+
+
+class OrphanVisibilityTest(unittest.TestCase):
+    """/agy:status's default (session-scoped) view must surface an orphan
+    belonging to a different (or no longer active) session without
+    requiring --all-sessions — `_scope_to_session` is what `run()` uses to
+    decide which rows to show."""
+
+    def test_orphan_survives_session_scoping_without_all_sessions(self):
+        jobs = [
+            {"id": "job-mine", "session_id": "sess-current"},
+            {"id": "job-orphan", "session_id": "sess-old"},
+        ]
+        rows = [
+            {"id": "job-mine", "orphan": False},
+            {"id": "job-orphan", "orphan": True},
+        ]
+        scoped = status._scope_to_session(jobs, rows, "sess-current")
+        self.assertEqual([row["id"] for row in scoped], ["job-mine", "job-orphan"])
+
+    def test_non_orphan_other_session_job_is_still_filtered_out(self):
+        jobs = [{"id": "job-other", "session_id": "sess-other"}]
+        rows = [{"id": "job-other", "orphan": False}]
+        scoped = status._scope_to_session(jobs, rows, "sess-current")
+        self.assertEqual(scoped, [])
+
+    def test_all_sessions_is_unaffected_no_session_filter_shows_everything(self):
+        jobs = [
+            {"id": "job-mine", "session_id": "sess-current"},
+            {"id": "job-other", "session_id": "sess-other"},
+        ]
+        rows = [
+            {"id": "job-mine", "orphan": False},
+            {"id": "job-other", "orphan": False},
+        ]
+        scoped = status._scope_to_session(jobs, rows, None)
+        self.assertEqual(scoped, rows)
+
+    def test_orphan_job_is_visible_without_all_sessions_end_to_end(self):
+        """Combines build_job_row's orphan derivation with
+        _scope_to_session's filtering — the acceptance criterion stated
+        directly, without going through run()'s CLI/subprocess layer."""
+        with tempfile.TemporaryDirectory() as tmp:
+            log_file = Path(tmp) / "job.log"
+            log_file.write_text(_RUNNING_LOG, encoding="utf-8")
+            mine = {
+                "id": "job-mine", "kind": "review", "status": "running",
+                "log_file": str(log_file), "session_id": "sess-current",
+                "created_at": "2026-01-01T00:00:00+00:00",
+            }
+            orphaned = {
+                "id": "job-orphan", "kind": "review", "status": "running",
+                "log_file": str(log_file), "session_id": "sess-old", "pid": 4242,
+                "created_at": "2026-01-01T00:00:00+00:00",
+            }
+            jobs = [mine, orphaned]
+            with mock.patch.object(status, "_pid_is_alive", return_value=True):
+                rows = [
+                    build_job_row(job, current_session_id="sess-current")
+                    for job in jobs
+                ]
+            scoped = status._scope_to_session(jobs, rows, "sess-current")
+
+        self.assertEqual({row["id"] for row in scoped}, {"job-mine", "job-orphan"})
+        orphan_row = next(row for row in scoped if row["id"] == "job-orphan")
+        self.assertTrue(orphan_row["orphan"])
+        mine_row = next(row for row in scoped if row["id"] == "job-mine")
+        self.assertFalse(mine_row["orphan"])
+
+
 class RenderStatusTableTest(unittest.TestCase):
     def test_empty_rows_renders_a_no_jobs_message_not_an_empty_table(self):
         rendered = render_status_table([])
@@ -491,6 +681,39 @@ class RenderStatusTableTest(unittest.TestCase):
         rendered = render_status_table(rows)
         stall_cell = rendered.splitlines()[2].split("|")[6].strip()
         self.assertEqual(stall_cell, "(none yet)")
+
+    def test_orphan_row_renders_the_word_orphan_in_its_own_column(self):
+        rows = [{
+            "id": "job-1", "kind": "review", "status": STATUS_RUNNING,
+            "conversation": _BOUND_UUID, "elapsed": "1s", "log_tail": "",
+            "stall": None, "usage": None, "orphan": True,
+        }]
+        rendered = render_status_table(rows)
+        self.assertIn("Orphan", rendered)  # header
+        orphan_cell = rendered.splitlines()[2].split("|")[9].strip()
+        self.assertEqual(orphan_cell, "orphan")
+
+    def test_non_orphan_row_renders_a_blank_orphan_cell_not_none_yet(self):
+        rows = [{
+            "id": "job-1", "kind": "review", "status": STATUS_RUNNING,
+            "conversation": _BOUND_UUID, "elapsed": "1s", "log_tail": "",
+            "stall": None, "usage": None, "orphan": False,
+        }]
+        rendered = render_status_table(rows)
+        orphan_cell = rendered.splitlines()[2].split("|")[9].strip()
+        self.assertEqual(orphan_cell, "")
+
+    def test_row_missing_orphan_key_entirely_renders_a_blank_cell(self):
+        """Backward compatible with rows built before this mission (e.g.
+        other tests in this file that construct row dicts by hand without
+        an 'orphan' key)."""
+        rows = [{
+            "id": "job-1", "kind": "review", "status": STATUS_RUNNING,
+            "conversation": _BOUND_UUID, "elapsed": "1s", "log_tail": "",
+        }]
+        rendered = render_status_table(rows)
+        orphan_cell = rendered.splitlines()[2].split("|")[9].strip()
+        self.assertEqual(orphan_cell, "")
 
 
 if __name__ == "__main__":
