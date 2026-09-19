@@ -48,6 +48,14 @@ from companion.launch import (
 
 HELP = "Hand a task to agy's default agent, foreground or --background, fresh or --resume."
 
+# Self-declaring marker read by tools/lint.py's model-invocation check
+# (never a second list inside lint.py itself): write-capable, since a bound
+# run launches agy with --dangerously-skip-permissions --sandbox. Any
+# command file whose body reaches this subcommand — directly, or via a
+# subagent forward, like /agy:delegate's forward to agy-delegate — must
+# declare disable-model-invocation: true in its own frontmatter.
+DANGEROUS = True
+
 # A delegate-specific trace pattern, deliberately NOT added to
 # companion.agy_log — this pattern is delegate-only.
 #

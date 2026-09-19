@@ -51,6 +51,11 @@ from companion.review_output import render_review, tolerant_parse
 
 HELP = "Resolve a review target, size the change, and either preview the prompt (--dry-run) or run a live agy review."
 
+# Self-declaring marker read by tools/lint.py's model-invocation check —
+# read-only, never writes to the reviewed repo, so no command reaching it
+# is required to declare disable-model-invocation.
+DANGEROUS = False
+
 _SCOPES = ("auto", "working-tree", "staged", "branch")
 
 # The diff is embedded directly in the prompt text rather than left

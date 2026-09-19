@@ -42,6 +42,11 @@ HELP = (
     "(--dry-run) or run a live agy review that argues against the change."
 )
 
+# Self-declaring marker read by tools/lint.py's model-invocation check —
+# read-only, never writes to the reviewed repo, so no command reaching it
+# is required to declare disable-model-invocation.
+DANGEROUS = False
+
 # No "staged" scope here: upstream's adversarial-review deliberately does not
 # support --scope staged/unstaged, and this command follows it. /agy:review
 # keeps "staged" for itself.
