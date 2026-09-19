@@ -148,9 +148,23 @@ def seed_jobs(repo, plugin_data, session_id):
     return done.stdout.strip()
 
 
-def run_probe(prompt, session_id, repo, plugin_data, out_prefix, timeout):
+def run_probe(prompt, session_id, repo, plugin_data, out_prefix, timeout,
+              session_args=None, allowed_tools="Bash(python3:*)"):
     """One real `claude -p` run. Raw stdout/stderr bytes are written to disk
     immediately, before any parsing, so a spent run is never lost.
+
+    `session_args` overrides the session-selecting flags, defaulting to this
+    tool's own `["--session-id", <session_id>]` so every call already in this
+    file is byte-for-byte unchanged (that exact command is what
+    `tests/fixtures/session_hook/PROVENANCE.md` records for M3). It exists so
+    `tools/live_session_env_conditions_capture.py` can reuse this launcher —
+    with its throwaway-cwd discipline and its zero-`agy`-quota tool grant —
+    for a `--resume` run and for a run with no pinned id at all.
+
+    `allowed_tools` likewise defaults to this tool's own narrowest grant, so
+    nothing here changes; the one caller that widens it adds `Task` (a
+    subagent's Bash calls are still `python3`-only, so `agy` stays
+    unreachable either way). `--permission-prompts none` is not overridable.
 
     No `--dangerously-skip-permissions` / `--permission-mode
     bypassPermissions` anywhere: `--allowedTools 'Bash(python3:*)'` is the
@@ -159,14 +173,15 @@ def run_probe(prompt, session_id, repo, plugin_data, out_prefix, timeout):
     exactly), and `--permission-prompts none` makes the run unable to hang on
     an unanswered prompt — anything outside the grant is denied instead.
     """
+    if session_args is None:
+        session_args = ["--session-id", session_id]
     cmd = [
         "claude",
         "-p",
         prompt,
-        "--session-id",
-        session_id,
+    ] + list(session_args) + [
         "--allowedTools",
-        "Bash(python3:*)",
+        allowed_tools,
         "--permission-prompts",
         "none",
         "--output-format",

@@ -302,6 +302,45 @@ Verified empirically against `agy` 1.1.6 on 2026-07-24. Full evidence lives in
   deliberately passes no `--plugin-dir`, so anyone editing `plugins/` and
   re-running it captures the OLD code unless they override it. Check the
   two fields before presenting a capture as proof of a change.
+- **`AGY_COMPANION_SESSION_ID` is present in every headless condition
+  measured so far — including resumed sessions and subagents.** Measured
+  2026-09-19 against Claude Code 2.1.278 by three more real `claude -p`
+  runs (`tools/live_session_env_conditions_capture.py`; no `agy` invoked,
+  Claude tokens only), committed as
+  `tests/fixtures/session_hook/2026-09-19-m3b-*`. (1) A fresh run with
+  **no** `--session-id` pinned: present, equal to the id Claude Code
+  generated — pinning is not what makes the export work. (2)
+  `claude -p --resume <that id>`: the hook fired as
+  `SessionStart:resume`, exit 0 — the first evidence that the
+  matcher-less `SessionStart` registration in `hooks/hooks.json` really
+  does cover non-`startup` sources, so **nothing captured justifies adding
+  a matcher**. (3) One session reading the value twice, from the main
+  thread and from inside a `Task` subagent (the subagent's `Bash` blocks
+  carry `parent_tool_use_id`, the main thread's carry `null`): present and
+  identical in both — **"the variable does not reach subagents" is
+  refuted**. Still not tested: a genuinely interactive TTY session (a
+  subagent cannot drive one), and the `clear`/`compact` sources.
+- **A session that predates the plugin's `hooks/` directory never gets the
+  variable — check process start time before blaming the hook.** The one
+  session where the variable was measured **absent** (2026-09-19,
+  `AGY_COMPANION_SESSION_ID` and `CLAUDE_ENV_FILE` both `None`) was owned
+  by a `claude` process that `ps -o lstart=` dates to 2026-09-18 18:50:51,
+  while `hooks/hooks.json` was born 2026-09-19 13:20:34 and the only
+  install cache (`0.2.0`) has no `hooks/` at all. The ordering is measured;
+  "the hook never ran for that session" is the explanation it supports, not
+  a capture. **The session transcript cannot settle it**: Claude Code
+  writes `PreToolUse` hook records into `~/.claude/projects/*/*.jsonl` and
+  no `SessionStart` ones — verified with a control, two sessions whose
+  captured streams show the SessionStart hook running have zero hook
+  records in their transcripts.
+- **`/agy:status` states the degraded case rather than silently widening
+  scope.** With `AGY_COMPANION_SESSION_ID` unset and no `--all-sessions`,
+  `_scope_to_session` returns every row unfiltered, which used to render
+  byte-identically to a deliberate `--all-sessions`. `render_status_table`
+  now takes `session_unknown` and prefixes `MISSING_SESSION_NOTICE` to both
+  the table and the zero-row message, so "we don't know your session" is
+  readable in the output a human sees. `--json` is unchanged — the notice
+  is a rendering, not a row.
 
 ## Never
 

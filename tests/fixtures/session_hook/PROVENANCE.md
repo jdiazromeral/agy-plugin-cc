@@ -200,6 +200,153 @@ subprocess it can reach — `companion.git.ensure_git_repository` ->
 spawns `git`. The captured `tool_use` blocks in both fixtures are the
 complete list of commands the sessions ran; neither names `agy`.
 
+## M3b — which conditions produce a present vs. an absent value
+
+M3 (everything above) measured exactly one condition: a fresh headless
+`claude -p` run with a **pinned** `--session-id`. It found the variable
+present, but it could say nothing about the condition in which the epic
+runner had separately observed it **absent**. M3b captured three more
+conditions and measured one existing session directly.
+
+- **Date**: 2026-09-19
+- **Claude Code version**: 2.1.278 (`claude --version`; also carried inside
+  the captured bytes as each `init` event's `claude_code_version`)
+- **agy version**: not relevant and not consulted — `agy` was never invoked.
+- **Capture tool**: `tools/live_session_env_conditions_capture.py`, which
+  reuses `tools/live_session_hook_capture.run_probe` (same throwaway-scratch
+  discipline, same `--permission-prompts none`, same `Bash(python3:*)`
+  grant; probe 3 adds `Task` to that grant and nothing else).
+- **Capture commands** (two runs, both recorded verbatim in
+  `2026-09-19-m3b-capture-tool-stdout.txt`):
+  ```
+  python3 tools/live_session_env_conditions_capture.py --timeout 300
+  python3 tools/live_session_env_conditions_capture.py --only subagent --timeout 420
+  ```
+
+All three probes loaded the same plugin directory as M3 did, read the same
+way — off each `init` event's own `plugins[]` table, never assumed:
+
+```json
+{"name":"agy","path":"/Users/REDACTED/workspace/code/japan4/work/lab/agy-plugin-cc/plugins/agy","source":"agy@agy","version":"0.3.0"}
+```
+
+The same caveat M3 states applies unchanged: that is the primary checkout,
+not this worktree, and this mission changes nothing under `plugins/`.
+
+### What was captured
+
+| # | condition | `SessionStart` hook that fired | `AGY_COMPANION_SESSION_ID` | raw evidence |
+|---|---|---|---|---|
+| 1 | fresh `claude -p`, **no** `--session-id` passed | `SessionStart:startup`, `exit_code: 0`, `outcome: "success"`, empty `stderr` | **present**, `'cb6ca8a0-f5a6-4fe0-b0c9-0b036a29c0ed'` — exactly the id Claude Code generated for the run (`init` event's `session_id`) | `2026-09-19-m3b-probe1-fresh-unpinned.stream.ndjson` |
+| 2 | `claude -p --resume <probe 1's session id>`, same cwd | `SessionStart:resume`, `exit_code: 0`, `outcome: "success"`, empty `stderr` | **present**, `'cb6ca8a0-f5a6-4fe0-b0c9-0b036a29c0ed'` | `2026-09-19-m3b-probe2-resume.stream.ndjson` |
+| 3 | fresh `claude -p`; the value read **twice** in one session — once from a main-thread `Bash` call, once from a `Bash` call inside a `Task` subagent of that same session | `SessionStart:startup`, `exit_code: 0`, `outcome: "success"`, empty `stderr` | **present in both**, `'b2e068eb-25d9-4a5f-88e3-cfba3ff5241d'` for main **and** subagent | `2026-09-19-m3b-probe3-subagent.stream.ndjson` |
+
+Probe 1 answers "does the export depend on the caller pinning the id?" —
+**no**: an id Claude Code generated itself arrived just as exactly.
+
+Probe 2 is the first measurement of a non-`startup` **source**.
+`plugins/agy/hooks/hooks.json` registers `SessionStart` with no matcher, so
+the hook is *configured* to fire for every source; the captured
+`hook_name: "SessionStart:resume"` pair is the first evidence that it
+actually does. **`hooks.json` was therefore not touched by this mission** —
+nothing captured here justifies changing it. One honest limit: because a
+resumed session keeps the same session id, the *value* alone cannot
+discriminate "the hook re-exported it on resume" from "something else
+carried it over". What is measured is that the hook ran under the `resume`
+source and exited 0, and that the value was present and correct.
+
+Probe 3's subagent line is genuinely from inside the subagent, not from the
+main thread reporting on its behalf: in the committed bytes the subagent's
+`Bash` `tool_use` and its `tool_result` both carry
+`"parent_tool_use_id":"toolu_01VdDapJ9hFc7paWoLjKsyrV"`, while the
+main-thread pair carries `null`. The two measurements come from one session,
+so they cannot be confounded by session age, binary version or install
+state. **This refutes "the variable does not reach subagents"**, which was
+the obvious hypothesis given where the absence was observed.
+
+### The one session where it was measured ABSENT — and the ordering that explains it
+
+Measured directly, from a `Bash` subprocess of the looper worker subagent
+running inside the ordinary interactive Claude Code session that produced
+this mission:
+
+```
+$ python3 -c 'import os; print(repr(os.environ.get("AGY_COMPANION_SESSION_ID")), repr(os.environ.get("CLAUDE_ENV_FILE")))'
+None None
+```
+
+Both unset. Two facts about that session, each measured:
+
+```
+$ ps -o pid=,lstart= -p 11450          # the `claude` process owning this session
+11450 Fri Sep 18 18:50:51 2026
+
+$ stat -f '%N birth=%SB' -t '%Y-%m-%d %H:%M:%S %z' plugins/agy/hooks/hooks.json
+plugins/agy/hooks/hooks.json birth=2026-09-19 13:20:34 +0200
+$ git log --diff-filter=A --format='%H %ci' -- plugins/agy/hooks/hooks.json
+8bfc5461553e2ff0b2b8be09640acc3d83c5cb79 2026-09-19 13:20:32 +0200
+```
+
+The session's `claude` process started **about 18.5 hours before this
+plugin had a `hooks/` directory at all**. The only install cache on this
+machine is `~/.claude/plugins/cache/agy/agy/0.2.0/`, which has no `hooks/`
+either (`ls .../0.2.0/hooks` -> no such file or directory), and the plugin
+is served live from the directory marketplace whose source is the primary
+checkout (`known_marketplaces.json` -> `agy` -> `source.path`), so there was
+no other `hooks.json` anywhere for that session to have loaded.
+
+**Stated as what it is**: the ordering above is measured, and so is the
+absent value. That no `SessionStart` hook ran for that session is the only
+explanation consistent with both, but it was **not** observed directly, and
+the session transcript cannot be used to observe it. That last point was
+checked rather than assumed, with a control: the session transcripts of
+probes 1 and 3 (`cb6ca8a0…` and `b2e068eb…`, under
+`~/.claude/projects/<scratch slug>/`) contain **no** hook record of any kind,
+even though their captured streams show a `SessionStart` hook that ran and
+exited 0. Across every recent transcript scanned, the only hook records
+Claude Code writes are `PreToolUse` ones (148 of them, 0 `SessionStart`).
+So the absence of a `SessionStart` record in the interactive session's
+transcript is evidence of nothing — the transcript never carries them.
+The process-start ordering is a capture; "the hook did not run" is the
+explanation it supports, and is labelled as an explanation deliberately.
+
+### Not tested
+
+- **A genuinely interactive TTY session.** A subagent cannot drive one —
+  there is no way from here to start `claude` on a real terminal, type into
+  it and read what a tool subprocess saw. So the question "does an
+  interactive session behave differently from `claude -p`?" is **not
+  tested**, and nothing above should be read as evidence either way. The one
+  interactive session measured (previous subsection) is confounded by the
+  process-start ordering and cannot separate the two explanations.
+- **A session started while the plugin had no `hooks/`, then re-measured
+  after the hooks appeared, without restarting.** That is the exact shape of
+  the confound above, and reproducing it deliberately would need a plugin
+  install/uninstall mid-session. **Not tested.**
+- **`SessionStart` sources `clear` and `compact`.** Only `startup` and
+  `resume` were captured. **Not tested.**
+
+### Cost and quota
+
+Three `claude -p` runs, Claude tokens only. `agy` was never invoked: probes
+1 and 2 ran under the unchanged `Bash(python3:*)` grant, probe 3 under
+`Bash(python3:*),Task` — a subagent's own Bash calls are bound by the same
+`python3` grant — and every run had `--permission-prompts none` with no
+`--dangerously-skip-permissions` or `--permission-mode bypassPermissions`
+anywhere. The only command any probe was asked to run is a one-line
+`python3 -c` that prints an environment variable; the committed streams'
+`tool_use` blocks are the complete list of what actually ran, and none names
+`agy`.
+
+### Scrubbing (M3b files)
+
+Same discipline as M3: path redaction only. Username -> `REDACTED`; the two
+throwaway scratch roots -> `<SCRATCH>` (and `<SCRATCH-RUN-1>` /
+`<SCRATCH-RUN-2>` in the tool stdout, which names both); the enclosing
+per-user temp dir -> `<TMPDIR>`. Session UUIDs are **not** redacted — they
+are the evidence. All three probes' stderr files were captured and are empty
+(0 bytes), so they are not committed.
+
 ## Files
 
 | file | what it is |
@@ -208,6 +355,10 @@ complete list of commands the sessions ran; neither names `agy`.
 | `2026-09-19-probe2-env-value.stream.ndjson` | probe 2's raw stdout (9 NDJSON lines) |
 | `2026-09-19-probe1-seeded-state.json` | the **state dir**'s `state.json` as seeded before probe 1 — the experiment's input side |
 | `2026-09-19-capture-tool-stdout.txt` | `tools/live_session_hook_capture.py`'s own stdout for this run, including its `PASS` line |
+| `2026-09-19-m3b-probe1-fresh-unpinned.stream.ndjson` | M3b probe 1's raw stdout — fresh `claude -p` with **no** `--session-id` (9 NDJSON lines) |
+| `2026-09-19-m3b-probe2-resume.stream.ndjson` | M3b probe 2's raw stdout — `claude -p --resume` of probe 1's session (8 NDJSON lines) |
+| `2026-09-19-m3b-probe3-subagent.stream.ndjson` | M3b probe 3's raw stdout — the value read from the main thread and from a `Task` subagent of the same session (22 NDJSON lines) |
+| `2026-09-19-m3b-capture-tool-stdout.txt` | `tools/live_session_env_conditions_capture.py`'s own stdout for both M3b runs |
 
 Both probes' stderr files were captured too and are **empty** (0 bytes), so
 they are not committed.

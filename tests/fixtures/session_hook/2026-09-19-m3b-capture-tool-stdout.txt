@@ -1,0 +1,55 @@
+$ python3 tools/live_session_env_conditions_capture.py --timeout 300
+scratch_root: <SCRATCH-RUN-1>
+repo: <SCRATCH-RUN-1>/repo
+inner command both probes run: python3 -c 'import os; print("MEASURED_ENV AGY_COMPANION_SESSION_ID=" + repr(os.environ.get("AGY_COMPANION_SESSION_ID")))'
+
+--- probe 1 fresh_unpinned ---
+exit_code: 0
+stdout_file: <SCRATCH-RUN-1>/probe1-fresh-unpinned.stream.ndjson
+stderr_file: <SCRATCH-RUN-1>/probe1-fresh-unpinned.stderr.txt
+init session_id: cb6ca8a0-f5a6-4fe0-b0c9-0b036a29c0ed
+init plugins[agy].path: /Users/REDACTED/workspace/code/japan4/work/lab/agy-plugin-cc/plugins/agy
+init plugins[agy].version: 0.3.0
+SessionStart hook events: [{"subtype": "hook_started", "hook_name": "SessionStart:startup", "exit_code": null, "outcome": null, "stderr": null}, {"subtype": "hook_response", "hook_name": "SessionStart:startup", "exit_code": 0, "outcome": "success", "stderr": ""}]
+captured bytes: MEASURED_ENV AGY_COMPANION_SESSION_ID='cb6ca8a0-f5a6-4fe0-b0c9-0b036a29c0ed'
+
+--- probe 2 resume ---
+exit_code: 0
+stdout_file: <SCRATCH-RUN-1>/probe2-resume.stream.ndjson
+stderr_file: <SCRATCH-RUN-1>/probe2-resume.stderr.txt
+init session_id: cb6ca8a0-f5a6-4fe0-b0c9-0b036a29c0ed
+init plugins[agy].path: /Users/REDACTED/workspace/code/japan4/work/lab/agy-plugin-cc/plugins/agy
+init plugins[agy].version: 0.3.0
+SessionStart hook events: [{"subtype": "hook_started", "hook_name": "SessionStart:resume", "exit_code": null, "outcome": null, "stderr": null}, {"subtype": "hook_response", "hook_name": "SessionStart:resume", "exit_code": 0, "outcome": "success", "stderr": ""}]
+captured bytes: MEASURED_ENV AGY_COMPANION_SESSION_ID='cb6ca8a0-f5a6-4fe0-b0c9-0b036a29c0ed'
+
+=== measured ===
+probe 1 (fresh, unpinned) generated session_id: cb6ca8a0-f5a6-4fe0-b0c9-0b036a29c0ed
+probe 1 value present and equal to that id: True
+probe 2 (resume) resumed session_id: cb6ca8a0-f5a6-4fe0-b0c9-0b036a29c0ed
+probe 2 value present and equal to probe 1's id: True
+
+NOT TESTED by this tool: an interactive TTY session. A subagent
+cannot drive one; do not infer anything about it from the above.
+
+
+$ python3 tools/live_session_env_conditions_capture.py --only subagent --timeout 420
+scratch_root: <SCRATCH-RUN-2>
+repo: <SCRATCH-RUN-2>/repo
+probes selected: ['subagent']
+inner command probes 1 and 2 run: python3 -c 'import os; print("MEASURED_ENV AGY_COMPANION_SESSION_ID=" + repr(os.environ.get("AGY_COMPANION_SESSION_ID")))'
+
+--- probe 3 subagent ---
+exit_code: 0
+stdout_file: <SCRATCH-RUN-2>/probe3-subagent.stream.ndjson
+stderr_file: <SCRATCH-RUN-2>/probe3-subagent.stderr.txt
+init session_id: b2e068eb-25d9-4a5f-88e3-cfba3ff5241d
+init plugins[agy].path: /Users/REDACTED/workspace/code/japan4/work/lab/agy-plugin-cc/plugins/agy
+init plugins[agy].version: 0.3.0
+SessionStart hook events: [{"subtype": "hook_started", "hook_name": "SessionStart:startup", "exit_code": null, "outcome": null, "stderr": null}, {"subtype": "hook_response", "hook_name": "SessionStart:startup", "exit_code": 0, "outcome": "success", "stderr": ""}]
+captured bytes: MEASURED_ENV MAIN AGY_COMPANION_SESSION_ID='b2e068eb-25d9-4a5f-88e3-cfba3ff5241d'
+captured bytes: MEASURED_ENV SUBAGENT AGY_COMPANION_SESSION_ID='b2e068eb-25d9-4a5f-88e3-cfba3ff5241d'
+
+probe 3 main-thread lines    : ["MEASURED_ENV MAIN AGY_COMPANION_SESSION_ID='b2e068eb-25d9-4a5f-88e3-cfba3ff5241d'"]
+probe 3 subagent-thread lines: ["MEASURED_ENV SUBAGENT AGY_COMPANION_SESSION_ID='b2e068eb-25d9-4a5f-88e3-cfba3ff5241d'"]
+

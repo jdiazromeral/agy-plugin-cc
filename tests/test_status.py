@@ -6,6 +6,9 @@ functions plus temp-file `--log-file`/`output_file`) — no subprocess, no
 agy, no network. `test_status_live.py` (a later slice) exercises the
 subcommand's end-to-end reading of a real state dir.
 """
+import argparse
+import contextlib
+import io
 import json
 import os
 import sys
@@ -714,6 +717,105 @@ class RenderStatusTableTest(unittest.TestCase):
         rendered = render_status_table(rows)
         orphan_cell = rendered.splitlines()[2].split("|")[9].strip()
         self.assertEqual(orphan_cell, "")
+
+
+class MissingSessionIdDegradationTest(unittest.TestCase):
+    """`/agy:status` must degrade HONESTLY when `AGY_COMPANION_SESSION_ID`
+    is unset: today `run()` passes `session_filter=None` to
+    `_scope_to_session`, which short-circuits to "every row, unfiltered" —
+    structurally identical to a deliberate `--all-sessions`. The rendered
+    output (the markdown table or the "no jobs" line, i.e. what a human
+    actually reads) must say so, and must be textually distinguishable from
+    the `--all-sessions` case over the same **job** set."""
+
+    _MINE = {
+        "id": "job-mine", "kind": "review", "status": STATUS_COMPLETED,
+        "session_id": "sess-current",
+    }
+    _OTHER = {
+        "id": "job-other", "kind": "review", "status": STATUS_COMPLETED,
+        "session_id": "sess-other",
+    }
+
+    def _run_status(self, jobs, session_id, all_sessions):
+        """Drive `status.run()` itself — argv-shaped Namespace in, rendered
+        stdout out — with `AGY_COMPANION_SESSION_ID` set to `session_id` or
+        removed entirely when it is `None`. The repo resolution and the
+        **state dir** read are the only things stubbed; the scoping and the
+        whole render path are the real ones."""
+        args = argparse.Namespace(repo=None, json=False, all_sessions=all_sessions)
+        buffer = io.StringIO()
+        with mock.patch.dict(os.environ):
+            if session_id is None:
+                os.environ.pop(status.SESSION_ID_ENV, None)
+            else:
+                os.environ[status.SESSION_ID_ENV] = session_id
+            with mock.patch.object(
+                status, "ensure_git_repository", return_value=Path("/repo")
+            ), mock.patch.object(status.state, "list_jobs", return_value=jobs):
+                with contextlib.redirect_stdout(buffer):
+                    exit_code = status.run(args)
+        self.assertEqual(exit_code, 0)
+        return buffer.getvalue()
+
+    def test_missing_session_id_with_jobs_states_the_degraded_condition(self):
+        rendered = self._run_status(
+            [self._MINE, self._OTHER], session_id=None, all_sessions=False
+        )
+        self.assertIn("job-mine", rendered)
+        self.assertIn("job-other", rendered)
+        self.assertIn(status.SESSION_ID_ENV, rendered)
+        self.assertIn("every session", rendered)
+
+    def test_missing_session_id_with_no_jobs_does_not_read_as_no_jobs(self):
+        """The zero-row case must not render a bare "No agy jobs" line that
+        a user reads as "nothing is running" when jobs may exist under
+        other sessions — the notice has to be there too."""
+        rendered = self._run_status([], session_id=None, all_sessions=False)
+        self.assertIn(status.SESSION_ID_ENV, rendered)
+        self.assertIn("every session", rendered)
+
+    def test_degraded_output_differs_textually_from_deliberate_all_sessions(self):
+        """Same **job** set, same rows shown — but "we don't know your
+        session" must not render identically to "you asked for every
+        session"."""
+        jobs = [self._MINE, self._OTHER]
+        degraded = self._run_status(jobs, session_id=None, all_sessions=False)
+        deliberate = self._run_status(
+            jobs, session_id="sess-current", all_sessions=True
+        )
+        for rendered in (degraded, deliberate):
+            self.assertIn("job-mine", rendered)
+            self.assertIn("job-other", rendered)
+        self.assertNotEqual(degraded, deliberate)
+        self.assertNotIn(status.SESSION_ID_ENV, deliberate)
+
+    def test_present_session_id_renders_no_degraded_notice(self):
+        """The notice is about a MISSING variable only — the ordinary
+        session-scoped view must not grow a permanent warning."""
+        rendered = self._run_status(
+            [self._MINE, self._OTHER], session_id="sess-current", all_sessions=False
+        )
+        self.assertIn("job-mine", rendered)
+        self.assertNotIn("job-other", rendered)
+        self.assertNotIn(status.SESSION_ID_ENV, rendered)
+
+    def test_json_output_is_unchanged_by_the_missing_variable(self):
+        """--json is a machine surface: the notice belongs in the rendered
+        table only, never smuggled into the JSON array."""
+        args = argparse.Namespace(repo=None, json=True, all_sessions=False)
+        buffer = io.StringIO()
+        with mock.patch.dict(os.environ):
+            os.environ.pop(status.SESSION_ID_ENV, None)
+            with mock.patch.object(
+                status, "ensure_git_repository", return_value=Path("/repo")
+            ), mock.patch.object(
+                status.state, "list_jobs", return_value=[self._MINE, self._OTHER]
+            ):
+                with contextlib.redirect_stdout(buffer):
+                    self.assertEqual(status.run(args), 0)
+        parsed = json.loads(buffer.getvalue())
+        self.assertEqual([row["id"] for row in parsed], ["job-mine", "job-other"])
 
 
 if __name__ == "__main__":
