@@ -408,6 +408,66 @@ class CancelJobHappyPathTest(_StateDirCase):
         self.assertIn(job["id"], message)
 
 
+class CancelOrphanedJobTest(_StateDirCase):
+    """/agy:cancel must still terminate an **orphan** (glossary term: a job
+    whose session has ended while its process is still alive) by job id
+    supplied from a later session, through the existing verified-kill
+    path, unchanged — `_select_job`'s `job_id` branch goes straight to
+    `state.match_job`, which was never session-scoped, so this is a
+    regression test proving a real gap does NOT exist here, not a change
+    to cancel.py itself."""
+
+    def test_cancel_terminates_an_orphan_by_id_from_a_later_session(self):
+        job = self._write_job(
+            "job-orphan", _RUNNING_LOG, pid=4242, session_id="sess-launcher"
+        )
+        had_env = state.SESSION_ID_ENV in os.environ
+        old_env = os.environ.get(state.SESSION_ID_ENV)
+        os.environ[state.SESSION_ID_ENV] = "sess-later"
+        try:
+            calls = []
+            exit_code, message = cancel.cancel_job(
+                self.repo_root, job["id"], terminate=lambda pid: calls.append(pid),
+                await_exit=_exited,
+            )
+        finally:
+            if had_env:
+                os.environ[state.SESSION_ID_ENV] = old_env
+            else:
+                os.environ.pop(state.SESSION_ID_ENV, None)
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(calls, [4242])
+        self.assertIn(job["id"], message)
+        jobs = state.list_jobs(self.repo_root)
+        self.assertEqual(jobs[0]["status"], STATUS_CANCELLED)
+
+    def test_cancel_terminates_an_orphan_by_id_with_no_session_id_at_all(self):
+        """The other half of the acceptance criteria: 'a session id that
+        differs ... or no session id at all'."""
+        job = self._write_job(
+            "job-orphan-nosession", _RUNNING_LOG, pid=4242,
+            session_id="sess-launcher",
+        )
+        had_env = state.SESSION_ID_ENV in os.environ
+        old_env = os.environ.get(state.SESSION_ID_ENV)
+        os.environ.pop(state.SESSION_ID_ENV, None)
+        try:
+            calls = []
+            exit_code, message = cancel.cancel_job(
+                self.repo_root, job["id"], terminate=lambda pid: calls.append(pid),
+                await_exit=_exited,
+            )
+        finally:
+            if had_env:
+                os.environ[state.SESSION_ID_ENV] = old_env
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(calls, [4242])
+        jobs = state.list_jobs(self.repo_root)
+        self.assertEqual(jobs[0]["status"], STATUS_CANCELLED)
+
+
 class CancelCliWiringTest(unittest.TestCase):
     """One subprocess smoke test proving `agy_companion.py cancel [job-id]`
     is wired end to end through argparse — the underlying selection/

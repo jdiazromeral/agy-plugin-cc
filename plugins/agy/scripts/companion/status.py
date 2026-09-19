@@ -32,6 +32,23 @@ exit code to consult and a "stalled" job may yet resume. `usage` surfaces
 the **result event**'s token counts once one has landed; both are `None`
 until their respective condition holds, never a fabricated zero or false.
 
+`build_job_row` also derives `orphan` on the same read pass, the same
+discipline applied one step further: a `STATUS_RUNNING` job whose recorded
+`session_id` differs from the current session (`SESSION_ID_ENV`) AND whose
+recorded `pid` independently probes alive (`_pid_is_alive`) is an
+**orphan** (see `.looper/knowledge/glossary.md`'s `modernize-127` entry) —
+its launching session ended, but nothing told its process to stop, which
+is exactly what a `--background` job's workspace-under-the-state-dir
+promise means (see `companion.state.resolve_job_workspace`). The session
+mismatch alone proves nothing (a job whose process already exited is a
+**zombie job**, not an orphan) — `_pid_is_alive` is the required,
+independent confirmation, never skipped. `SessionEnd`
+(`hooks/session_end.py`) used to "clean up" exactly this condition by
+killing the process and lying about it; it now writes nothing, so this is
+the only place `orphan` is derived, always freshly, never stored.
+`run()` keeps an orphan visible in the default, session-scoped view (never
+requiring `--all-sessions`) — see `_scope_to_session`.
+
 Reads only; never writes state, never touches `agy` or spawns anything.
 """
 import json
@@ -125,21 +142,33 @@ def run(args):
         return 1
 
     jobs = state.list_jobs(repo_root)
-    session_id = None if args.all_sessions else os.environ.get(SESSION_ID_ENV)
-    scoped = _scope_to_session(jobs, session_id)
-    rows = [build_job_row(job) for job in scoped]
+    current_session_id = os.environ.get(SESSION_ID_ENV)
+    rows = [build_job_row(job, current_session_id=current_session_id) for job in jobs]
+    session_filter = None if args.all_sessions else current_session_id
+    scoped = _scope_to_session(jobs, rows, session_filter)
 
     if args.json:
-        print(json.dumps(rows))
+        print(json.dumps(scoped))
     else:
-        print(render_status_table(rows, session_scoped=bool(session_id)))
+        print(render_status_table(scoped, session_scoped=bool(session_filter)))
     return 0
 
 
-def _scope_to_session(jobs, session_id):
+def _scope_to_session(jobs, rows, session_id):
+    """Pair each of `jobs` with its already-built `rows` entry (same order,
+    same length — both come from one `[... for job in jobs]` pass in
+    `run()`) and keep it if either the job belongs to `session_id` (the
+    ordinary case) or the row derived as an **orphan**. An orphan belonging
+    to a different, or no longer active, session must be visible in the
+    default session-scoped view without `--all-sessions` — that is the
+    whole reason `/agy:status` derives it at all."""
     if not session_id:
-        return jobs
-    return [job for job in jobs if job.get("session_id") == session_id]
+        return rows
+    return [
+        row
+        for job, row in zip(jobs, rows)
+        if job.get("session_id") == session_id or row.get("orphan")
+    ]
 
 
 # --- log/event-stream -> status derivation -----------------------------------
@@ -199,7 +228,53 @@ def derive_status(log_text, event_stream=None):
     return STATUS_RUNNING
 
 
-def build_job_row(job, now=None):
+_UNSET = object()
+
+
+def _pid_is_alive(pid):
+    """Signal-0 liveness probe, mirroring `companion.cancel._is_alive`
+    exactly (EPERM counts as alive: exists, just not ours to signal). Not
+    imported from there: `cancel.py` imports THIS module
+    (`from companion.status import ... build_job_row`), so importing back
+    would be circular — see AGENTS.md's leaf-module layering note. This
+    probe is small enough that duplicating it here is cheaper than
+    promoting it to a shared leaf module for one caller on each side."""
+    if not isinstance(pid, int):
+        return False
+    try:
+        os.kill(pid, 0)
+        return True
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+
+
+def _is_orphan(job, status_value, current_session_id):
+    """True if `job` is an **orphan**: its session has ended while its
+    process is still alive. Three gates, all required:
+
+      1. `status_value` must be STATUS_RUNNING — a terminal job's process
+         is not "still alive" in any sense this function can observe
+         (mirrors `_compute_stall`'s identical STATUS_RUNNING gate).
+      2. `job`'s own `session_id` must be set AND differ from
+         `current_session_id` — a job with no recorded session, or one
+         that matches the session reading status right now, has no other
+         session to have ended.
+      3. Per the glossary ("never assumed from the session's absence"),
+         `_pid_is_alive` must independently confirm the recorded pid is
+         still alive. A session mismatch alone proves nothing — the
+         process could equally have already exited (a **zombie job**, not
+         an orphan)."""
+    if status_value != STATUS_RUNNING:
+        return False
+    job_session_id = job.get("session_id")
+    if not job_session_id or job_session_id == current_session_id:
+        return False
+    return _pid_is_alive(job.get("pid"))
+
+
+def build_job_row(job, now=None, current_session_id=_UNSET):
     """Build one **status** table row for `job` (a state.py job record),
     re-reading its `--log-file` and `output_file` fresh every call — except
     that a stored **terminal status** (`_is_stored_terminal_status`:
@@ -216,12 +291,18 @@ def build_job_row(job, now=None):
     — it is always re-derived. Never raises on empty, partial, or
     unparseable `output_file` content — see `_parse_event_stream`.
 
-    Two additional keys are decorations on top of `status`, never a status
-    transition of their own (see `_compute_stall`'s docstring and
-    STATUS_RUNNING's meaning, unchanged by either): `stall` (a formatted
-    duration, or `None` when not running or not stalled) and `usage` (the
-    **result event**'s raw token-count dict, or `None` before one has
-    landed — never synthesized zeros)."""
+    Three additional keys are decorations on top of `status`, never a
+    status transition of their own (see `_compute_stall`'s docstring and
+    STATUS_RUNNING's meaning, unchanged by any of them): `stall` (a
+    formatted duration, or `None` when not running or not stalled), `usage`
+    (the **result event**'s raw token-count dict, or `None` before one has
+    landed — never synthesized zeros), and `orphan` (a bool; see
+    `_is_orphan`). `current_session_id` defaults to reading `SESSION_ID_ENV`
+    fresh (the same source `run()` uses for scoping) so most callers never
+    pass it explicitly; tests pass it directly instead of mutating the
+    environment, the same pattern `now` already uses for the clock."""
+    if current_session_id is _UNSET:
+        current_session_id = os.environ.get(SESSION_ID_ENV)
     log_file = job.get("log_file")
     output_file = job.get("output_file")
     log_text = state.read_file_safe(log_file)
@@ -243,6 +324,7 @@ def build_job_row(job, now=None):
         "stall": _compute_stall(job, status_value, output_file, now=now),
         "usage": usage,
         "log_tail": _log_tail(log_text),
+        "orphan": _is_orphan(job, status_value, current_session_id),
     }
 
 
@@ -353,12 +435,12 @@ def render_status_table(rows, session_scoped=False):
         return "No agy jobs{} in this repo yet.".format(scope_note)
 
     lines = [
-        "| Job | Kind | Status | Conversation | Elapsed | Stall | Usage | Log tail |",
-        "|---|---|---|---|---|---|---|---|",
+        "| Job | Kind | Status | Conversation | Elapsed | Stall | Usage | Log tail | Orphan |",
+        "|---|---|---|---|---|---|---|---|---|",
     ]
     for row in rows:
         lines.append(
-            "| {} | {} | {} | {} | {} | {} | {} | {} |".format(
+            "| {} | {} | {} | {} | {} | {} | {} | {} | {} |".format(
                 row["id"] or "",
                 row["kind"] or "",
                 row["status"],
@@ -367,6 +449,7 @@ def render_status_table(rows, session_scoped=False):
                 _format_stall(row["status"], row.get("stall")),
                 _format_usage(row.get("usage")),
                 _escape_cell(row["log_tail"]),
+                _format_orphan(row.get("orphan")),
             )
         )
     return "\n".join(lines)
@@ -401,6 +484,15 @@ def _format_usage(usage):
         usage.get("cache_read_tokens", 0),
         usage.get("total_tokens", 0),
     )
+
+
+def _format_orphan(is_orphan):
+    """Orphan-column rendering: the literal word **orphan** (the glossary's
+    exact term) when true, blank otherwise — never `"(none yet)"`. That
+    placeholder means "no signal has landed yet for a still-open question"
+    (conversation/stall/usage); a non-orphan job is not an open question,
+    it is simply not orphaned."""
+    return "orphan" if is_orphan else ""
 
 
 def _escape_cell(value):
