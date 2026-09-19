@@ -111,6 +111,62 @@ class TolerantParseDefenseTest(unittest.TestCase):
         self.assertEqual(render_review(parsed), text)
 
 
+class RenderReviewDeniedActionsTest(unittest.TestCase):
+    """The **degraded** notice `render_review` prefixes when `denied_actions`
+    is non-empty — synthetic data shaped exactly like the real M5 capture's
+    entry (`{"action": "write_file", "display_name": "WriteToFile"}` — see
+    tests/fixtures/denied_actions/PROVENANCE.md), covering both the clean
+    findings-table branch AND the tolerant_parse-fallback branch, per the
+    contract's "a review must never lose the notice just because it also
+    failed to parse"."""
+
+    _DENIED = [{"action": "write_file", "display_name": "WriteToFile"}]
+
+    def test_degraded_notice_renders_ahead_of_a_clean_findings_table(self):
+        parsed = tolerant_parse(_load_fixture("2026-07-24-run3.stdout.txt"))
+
+        rendered = render_review(parsed, denied_actions=self._DENIED)
+
+        self.assertIn("DEGRADED", rendered)
+        self.assertIn("WriteToFile", rendered)
+        self.assertIn("write_file", rendered)
+        # The findings table still renders below the notice.
+        self.assertIn("P0", rendered)
+        self.assertIn("patch is incorrect", rendered)
+        self.assertLess(rendered.index("DEGRADED"), rendered.index("P0"))
+
+    def test_degraded_notice_renders_ahead_of_a_tolerant_parse_fallback(self):
+        broken = "not json at all {"
+        parsed = tolerant_parse(broken)
+        self.assertFalse(parsed["ok"])
+
+        rendered = render_review(parsed, denied_actions=self._DENIED)
+
+        self.assertIn("DEGRADED", rendered)
+        self.assertIn("WriteToFile", rendered)
+        self.assertIn(broken, rendered)
+        self.assertLess(rendered.index("DEGRADED"), rendered.index(broken))
+
+    def test_no_denied_actions_renders_exactly_as_before(self):
+        parsed = tolerant_parse(_load_fixture("2026-07-24-run3.stdout.txt"))
+
+        self.assertEqual(render_review(parsed), render_review(parsed, denied_actions=[]))
+        self.assertNotIn("DEGRADED", render_review(parsed))
+
+    def test_multiple_denied_actions_are_all_named_in_the_notice(self):
+        denied = [
+            {"action": "write_file", "display_name": "WriteToFile"},
+            {"action": "run_command", "display_name": "RunCommand"},
+        ]
+        parsed = tolerant_parse(_load_fixture("2026-07-24-run3.stdout.txt"))
+
+        rendered = render_review(parsed, denied_actions=denied)
+
+        self.assertIn("WriteToFile", rendered)
+        self.assertIn("RunCommand", rendered)
+        self.assertIn("2 tool action", rendered)
+
+
 class FormatPriorityTest(unittest.TestCase):
     def test_maps_int_priority_0_to_3_onto_p_labels(self):
         self.assertEqual(format_priority(0), "P0")

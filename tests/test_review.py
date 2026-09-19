@@ -7,6 +7,7 @@ agy binary; MissingDryRunTest (the one non-dry-run test in this file)
 scopes PATH so it cannot reach a real agy either — see
 tests/test_review_live.py for the full foreground live-path coverage.
 """
+import io
 import json
 import os
 import shutil
@@ -14,7 +15,9 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
+from unittest import mock
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 COMPANION = REPO_ROOT / "plugins" / "agy" / "scripts" / "agy_companion.py"
@@ -78,6 +81,85 @@ def _run_review(repo, extra_args=()):
         text=True,
         timeout=10,
     )
+
+
+class RunLiveReviewDeniedActionsTest(unittest.TestCase):
+    """`_run_live_review`'s denied_actions threading, driven directly against
+    a hand-built **event stream** combining a schema-valid response with a
+    denied_actions entry shaped exactly like the real M5 capture's
+    (`{"action": "write_file", "display_name": "WriteToFile"}` — see
+    tests/fixtures/denied_actions/PROVENANCE.md). That real capture's own
+    response is the empty string, so a --json-path assertion needs a
+    combination no single real fixture happens to exercise; this is a
+    deliberate, labeled synthetic combination, never claimed as a capture.
+    Mocks `_launch_agy` (patched by its own module's imported name, per
+    AGENTS.md's Method section) so no subprocess or fake agy binary is
+    needed."""
+
+    _RESPONSE = json.dumps({
+        "findings": [], "overall_correctness": "patch is correct",
+        "overall_explanation": "ok", "overall_confidence_score": 0.9,
+    })
+    _DENIED = [{"action": "write_file", "display_name": "WriteToFile"}]
+    _STREAM = (
+        json.dumps({
+            "event": "init", "conversation_id": "x",
+            "init": {"agent": "agy-review"},
+        }) + "\n"
+        + json.dumps({
+            "event": "result",
+            "result": {
+                "conversation_id": "x", "status": "SUCCESS", "response": _RESPONSE,
+                "denied_actions": [{"action": "write_file", "display_name": "WriteToFile"}],
+            },
+        }) + "\n"
+    )
+
+    def _mock_launch(self, *args, **kwargs):
+        return "bound", "Created conversation x", 0, self._STREAM.encode("utf-8"), b""
+
+    def test_json_payload_includes_the_denied_actions_key(self):
+        with mock.patch("companion.review._launch_agy", side_effect=self._mock_launch), \
+                redirect_stdout(io.StringIO()) as out:
+            code = review._run_live_review("/tmp/repo", "prompt", True)
+
+        self.assertEqual(0, code)
+        payload = json.loads(out.getvalue())
+        self.assertEqual(self._DENIED, payload["denied_actions"])
+        self.assertEqual("patch is correct", payload["overall_correctness"])
+
+    def test_human_output_shows_the_degraded_notice(self):
+        with mock.patch("companion.review._launch_agy", side_effect=self._mock_launch), \
+                redirect_stdout(io.StringIO()) as out:
+            code = review._run_live_review("/tmp/repo", "prompt", False)
+
+        self.assertEqual(0, code)
+        rendered = out.getvalue()
+        self.assertIn("DEGRADED", rendered)
+        self.assertIn("WriteToFile", rendered)
+        self.assertIn("patch is correct", rendered)
+
+    def test_no_denied_actions_key_is_still_present_but_empty(self):
+        stream_no_denials = (
+            json.dumps({"event": "init", "conversation_id": "x", "init": {"agent": "agy-review"}})
+            + "\n"
+            + json.dumps({
+                "event": "result",
+                "result": {"conversation_id": "x", "status": "SUCCESS", "response": self._RESPONSE},
+            })
+            + "\n"
+        )
+
+        def mock_launch(*args, **kwargs):
+            return "bound", "Created conversation x", 0, stream_no_denials.encode("utf-8"), b""
+
+        with mock.patch("companion.review._launch_agy", side_effect=mock_launch), \
+                redirect_stdout(io.StringIO()) as out:
+            code = review._run_live_review("/tmp/repo", "prompt", True)
+
+        self.assertEqual(0, code)
+        payload = json.loads(out.getvalue())
+        self.assertEqual([], payload["denied_actions"])
 
 
 class UntrackedFileOnlyTest(unittest.TestCase):

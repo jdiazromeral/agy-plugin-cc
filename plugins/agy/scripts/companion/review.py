@@ -235,16 +235,40 @@ def _run_live_review(repo_root, prompt, as_json, agent_name=_AGY_AGENT_NAME, tim
         )
         return 1
 
-    review_text = _extract_review_text(stdout_text)
+    event_stream = _parse_review_stream(stdout_text)
+    review_text = _extract_review_text(stdout_text, event_stream=event_stream)
+    denied_actions = list(event_stream.denied_actions) if event_stream is not None else []
     parsed = tolerant_parse(review_text)
     if as_json and parsed["ok"]:
-        print(json.dumps(parsed))
+        payload = dict(parsed)
+        # Never blind a --json consumer to degradation the human renderer
+        # would show (glossary: **denied action**) — empty list when none,
+        # same discipline as denied_actions itself never rendering as None.
+        payload["denied_actions"] = denied_actions
+        print(json.dumps(payload))
     else:
-        print(render_review(parsed))
+        print(render_review(parsed, denied_actions=denied_actions))
     return 0
 
 
-def _extract_review_text(stdout_text):
+def _parse_review_stream(stdout_text):
+    """Parse `stdout_text` — agy's raw stdout under `--output-format
+    stream-json` — as an **event stream** exactly once per launch, shared by
+    `_extract_review_text` (review-text extraction) and `_run_live_review`
+    (denied_actions threading). Returns the `EventStream` record, or `None`
+    if the stream cannot be parsed at all (malformed NDJSON) — never raises.
+    `stream_events.parse_event_stream` has no try/except of its own around
+    each line's `json.loads`, by design — the guard belongs at the
+    consumer, which knows what to fall back to. Catching `ValueError`
+    (which `json.JSONDecodeError` subclasses) around the parse call is
+    enough."""
+    try:
+        return stream_events.parse_event_stream(stdout_text)
+    except ValueError:
+        return None
+
+
+def _extract_review_text(stdout_text, event_stream=None):
     """Pull the review JSON to hand to `tolerant_parse` out of `stdout_text`
     — `agy`'s raw stdout under `--output-format stream-json` (an **event
     stream**: NDJSON, `init` -> `step_update`(xN) -> `result`). Returns the
@@ -255,16 +279,13 @@ def _extract_review_text(stdout_text):
     back to the raw text lets `tolerant_parse` have a try at it instead, per
     AGENTS.md's "a review that renders ugly beats a review that vanishes".
 
-    `stream_events.parse_event_stream` (companion.stream_events) has no
-    try/except of its own around each line's `json.loads`, by design — the
-    guard belongs at the consumer, which knows what to fall back to.
-    Catching `ValueError` (which `json.JSONDecodeError` subclasses) around
-    the parse call is enough."""
-    try:
-        event_stream = stream_events.parse_event_stream(stdout_text)
-    except ValueError:
-        return stdout_text
-    if event_stream.response is None:
+    `event_stream` is the already-parsed `_parse_review_stream(stdout_text)`
+    result when the caller has one (`_run_live_review` does, to avoid
+    parsing twice); parsed fresh here otherwise, so any other caller keeps
+    working unchanged."""
+    if event_stream is None:
+        event_stream = _parse_review_stream(stdout_text)
+    if event_stream is None or event_stream.response is None:
         return stdout_text
     return event_stream.response
 

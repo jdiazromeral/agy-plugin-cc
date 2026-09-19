@@ -369,6 +369,37 @@ Verified empirically against `agy` 1.1.6 on 2026-07-24. Full evidence lives in
   older binary. This repo supports one agy binary at a time, no dual code
   path, so the floor moves to the version the frontmatter was written
   against rather than carrying two `tools:` semantics.
+- **`denied_actions` is real and live on 1.2.7, but unreachable via either
+  vendored review agent today** (modernize-127 M5). A headless (`-p`) run
+  under `--sandbox` without `--dangerously-skip-permissions` soft-denies
+  every tool confirmation; since 1.1.27 each denial is recorded on the
+  **result event** as `denied_actions: [{"action": ..., "display_name":
+  ...}]`, e.g. `[{"action": "write_file", "display_name": "WriteToFile"}]`
+  — captured live against `agy`'s own DEFAULT agent (no `--agent` flag),
+  the one command vector this mission's single paid run could spend that
+  can still attempt a tool call at all. Both `/agy:review` and
+  `/agy:adversarial-review` bind a vendored agent declaring `tools: []`
+  (M4's `excludeDefaultComponents: true` + `tools: []`), so neither one can
+  attempt — and therefore cannot have denied — any tool call, full stop:
+  `denied_actions` cannot be produced through either command's own vector
+  under the current agent configuration. `companion/stream_events.py`
+  parses the field regardless (defaulting to an empty collection, never
+  `None`) and `review_output.render_review` /
+  `companion/review.py`'s `_run_live_review` / `companion/result.py`'s
+  `_render_result` all thread it through to a **degraded** notice, proven
+  against the real captured bytes at the parser layer
+  (`tests/fixtures/denied_actions/`) — forward-looking plumbing for the day
+  either agent's `tools:` changes, not a claim this mission observed a
+  denial through a real review. Same mission, same parser: stream-json's
+  `command_result` event (a read-only slash-command's structured answer,
+  live since 1.1.11) is now recognized rather than silently ignored —
+  `companion/stream_events.py` reads its `command` payload (`{name,
+  data}`), and also reads the identical payload off the terminal **result
+  event**'s own `command` key when present (both carry it in the real
+  capture at `tests/fixtures/command_result/`, so a stream truncated
+  before the dedicated line still recovers it). No consumer renders
+  `command` anywhere yet — out of this mission's scope — this is
+  parser-layer recognition only.
 
 ## Never
 
