@@ -2,6 +2,7 @@
 import json
 import os
 import pathlib
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -41,44 +42,79 @@ class SessionStartHookTest(unittest.TestCase):
 
 
 class SessionEndHookTest(unittest.TestCase):
-    def test_session_end_cancels_matching_running_jobs(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            state_dir = pathlib.Path(tmp) / "state" / "myrepo-abc123"
-            state_dir.mkdir(parents=True)
-            state_file = state_dir / "state.json"
-            initial_state = {
-                "version": 1,
-                "jobs": [
-                    {
-                        "id": "job-1",
-                        "session_id": "sess-target",
-                        "status": "running",
-                        "pid": 999999,  # Non-existent PID
-                    },
-                    {
-                        "id": "job-2",
-                        "session_id": "sess-other",
-                        "status": "running",
-                        "pid": 888888,
-                    },
-                ],
-            }
-            state_file.write_text(json.dumps(initial_state), encoding="utf-8")
+    def test_session_end_never_signals_a_live_process_and_never_mutates_state_json(self):
+        """Replaces test_session_end_cancels_matching_running_jobs, which
+        asserted the opposite, buggy behavior. Proven over GENUINELY alive
+        processes (never an already-gone pid, which would prove nothing):
+        SessionEnd must not signal either job's process, and must not
+        rewrite state.json's `jobs` array at all — not the ending session's
+        own job, and not any other job either.
+        """
+        target_proc = subprocess.Popen(
+            [sys.executable, "-c", "import time; time.sleep(30)"],
+            start_new_session=True,
+        )
+        other_proc = subprocess.Popen(
+            [sys.executable, "-c", "import time; time.sleep(30)"],
+            start_new_session=True,
+        )
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                state_dir = pathlib.Path(tmp) / "state" / "myrepo-abc123"
+                state_dir.mkdir(parents=True)
+                state_file = state_dir / "state.json"
+                initial_state = {
+                    "version": 1,
+                    "jobs": [
+                        {
+                            "id": "job-1",
+                            "session_id": "sess-target",
+                            "status": "running",
+                            "pid": target_proc.pid,
+                        },
+                        {
+                            "id": "job-2",
+                            "session_id": "sess-other",
+                            "status": "running",
+                            "pid": other_proc.pid,
+                        },
+                    ],
+                }
+                original_json = json.dumps(initial_state)
+                state_file.write_text(original_json, encoding="utf-8")
 
-            orig_plugin_data = os.environ.get("CLAUDE_PLUGIN_DATA")
-            try:
-                os.environ["CLAUDE_PLUGIN_DATA"] = tmp
-                session_end.cleanup_session_jobs("sess-target")
+                orig_plugin_data = os.environ.get("CLAUDE_PLUGIN_DATA")
+                try:
+                    os.environ["CLAUDE_PLUGIN_DATA"] = tmp
+                    session_end.cleanup_session_jobs("sess-target")
+                finally:
+                    if orig_plugin_data is None:
+                        os.environ.pop("CLAUDE_PLUGIN_DATA", None)
+                    else:
+                        os.environ["CLAUDE_PLUGIN_DATA"] = orig_plugin_data
 
-                updated = json.loads(state_file.read_text(encoding="utf-8"))
-                jobs_by_id = {j["id"]: j for j in updated["jobs"]}
-                self.assertEqual(jobs_by_id["job-1"]["status"], "cancelled")
-                self.assertEqual(jobs_by_id["job-2"]["status"], "running")
-            finally:
-                if orig_plugin_data is None:
-                    os.environ.pop("CLAUDE_PLUGIN_DATA", None)
-                else:
-                    os.environ["CLAUDE_PLUGIN_DATA"] = orig_plugin_data
+                # Both processes must still be alive — SessionEnd must never
+                # signal a job's process, targeted or not.
+                self.assertIsNone(
+                    target_proc.poll(),
+                    "BUG REPRODUCED: SessionEnd signalled the ending session's own job",
+                )
+                self.assertIsNone(
+                    other_proc.poll(),
+                    "BUG REPRODUCED: SessionEnd signalled a job outside the ending session",
+                )
+
+                # state.json must be untouched — no read-modify-write at all.
+                self.assertEqual(
+                    state_file.read_text(encoding="utf-8"),
+                    original_json,
+                    "BUG REPRODUCED: SessionEnd mutated state.json",
+                )
+        finally:
+            target_proc.kill()
+            other_proc.kill()
+            target_proc.wait(timeout=5)
+            other_proc.wait(timeout=5)
 
 
 if __name__ == "__main__":
