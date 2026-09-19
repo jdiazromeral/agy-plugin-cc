@@ -113,6 +113,22 @@ def _is_stored_terminal_status(stored_status):
 # every job for the repo rather than crashing or silently showing nothing.
 SESSION_ID_ENV = state.SESSION_ID_ENV
 
+# The rendered notice for the **degraded** case: no `SESSION_ID_ENV` in the
+# environment and no `--all-sessions` asked for. `_scope_to_session`
+# short-circuits to "every row, unfiltered" on a falsy session id, which is
+# byte-identical to what a deliberate `--all-sessions` produces — so without
+# this line the reader cannot tell "you asked for every session" from "we do
+# not know your session and are showing you everyone's jobs anyway". It is
+# rendered above BOTH the table and the zero-row message (a bare "No agy
+# jobs" line otherwise reads as "nothing is running" to a user who has no
+# idea the scope silently widened). Rendered output only: `--json` is a
+# machine surface and stays a bare array.
+MISSING_SESSION_NOTICE = (
+    "note: {} is unset, so this Claude Code session could not be identified "
+    "— showing jobs from every session in this repo, not just this one. The "
+    "SessionStart hook exports it; see AGENTS.md's settled findings."
+).format(SESSION_ID_ENV)
+
 _LOG_TAIL_MAX_CHARS = 80
 
 # A starting-point ceiling, not a measured one — no telemetry exists yet on
@@ -151,11 +167,20 @@ def run(args):
     rows = [build_job_row(job, current_session_id=current_session_id) for job in jobs]
     session_filter = None if args.all_sessions else current_session_id
     scoped = _scope_to_session(jobs, rows, session_filter)
+    # Not `not session_filter`: --all-sessions widening the scope on purpose
+    # is not degraded, it is what the user asked for.
+    session_unknown = not current_session_id and not args.all_sessions
 
     if args.json:
         print(json.dumps(scoped))
     else:
-        print(render_status_table(scoped, session_scoped=bool(session_filter)))
+        print(
+            render_status_table(
+                scoped,
+                session_scoped=bool(session_filter),
+                session_unknown=session_unknown,
+            )
+        )
     return 0
 
 
@@ -434,10 +459,20 @@ def _log_tail(log_text, max_chars=_LOG_TAIL_MAX_CHARS):
 # --- rendering ---------------------------------------------------------------
 
 
-def render_status_table(rows, session_scoped=False):
+def render_status_table(rows, session_scoped=False, session_unknown=False):
+    """Render `rows` as the markdown table (or the zero-row message).
+
+    `session_unknown` is the **degraded** case — `SESSION_ID_ENV` absent
+    while the caller did NOT ask for `--all-sessions` — and prefixes
+    MISSING_SESSION_NOTICE to whichever of the two renderings applies, so
+    the widened scope is visible to a human reading the output rather than
+    only to code inspecting a flag. `session_scoped` and `session_unknown`
+    are never both true: `run()` derives the first from a session filter
+    that exists and the second from one that does not."""
     if not rows:
         scope_note = " for the current session" if session_scoped else ""
-        return "No agy jobs{} in this repo yet.".format(scope_note)
+        message = "No agy jobs{} in this repo yet.".format(scope_note)
+        return _with_missing_session_notice(message, session_unknown)
 
     lines = [
         "| Job | Kind | Status | Conversation | Elapsed | Stall | Usage | Log tail | Orphan |",
@@ -457,7 +492,15 @@ def render_status_table(rows, session_scoped=False):
                 _format_orphan(row.get("orphan")),
             )
         )
-    return "\n".join(lines)
+    return _with_missing_session_notice("\n".join(lines), session_unknown)
+
+
+def _with_missing_session_notice(rendered, session_unknown):
+    """MISSING_SESSION_NOTICE above `rendered`, blank line between, when
+    `session_unknown`; `rendered` untouched otherwise."""
+    if not session_unknown:
+        return rendered
+    return "{}\n\n{}".format(MISSING_SESSION_NOTICE, rendered)
 
 
 def _format_stall(status_value, stall):
