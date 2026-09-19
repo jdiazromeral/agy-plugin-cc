@@ -61,8 +61,26 @@ _VERSION_RE = re.compile(r"(\d+\.\d+\.\d+)")
 # 1.1.11 and a version-inference fallback below it, the floor simply moves
 # up to the version where the plugin can prove what it used to have to
 # assume.
-MIN_AGY_VERSION = (1, 1, 11)
-MIN_AGY_VERSION_STR = "1.1.11"
+#
+# 1.2.7 is the floor now (modernize-127 M4). This move is not about a new
+# free probe, like the two moves above — it is about the vendored review
+# agents (plugins/agy/agents/{agy-review,agy-adversarial-review}/agent.md)
+# newly declaring `excludeDefaultComponents: true` and an explicit
+# `tools: []`, to opt back out of agy 1.1.25+'s **ambient inheritance** for
+# Markdown-defined custom agents and restore each as a fixed, **hermetic
+# review** rather than one whose behavior depends on the reviewed
+# workspace's own skills/rules/subagents. agy 1.2.7 is the version that
+# retired `find_by_name`, `grep_search`, and `list_dir` from the *default*
+# tool baseline while keeping them available to a custom agent that
+# explicitly lists them in `tools:` — below 1.2.7 the default baseline is
+# different, so a declared `tools:` list (empty or not) would resolve
+# against a different implicit baseline and behave differently than on
+# 1.2.7+. This repo supports one agy binary at a time, no dual code path:
+# rather than carry two `tools:` semantics depending on which binary
+# happens to be installed, the floor moves up to the version the
+# frontmatter was written against.
+MIN_AGY_VERSION = (1, 2, 7)
+MIN_AGY_VERSION_STR = "1.2.7"
 
 # Agy 1.1.6 has no first-class auth-status API (verified — see
 # AGENTS.md "Settled findings"). We classify auth state from the exit code

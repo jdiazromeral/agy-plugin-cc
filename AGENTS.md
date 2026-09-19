@@ -341,6 +341,34 @@ Verified empirically against `agy` 1.1.6 on 2026-07-24. Full evidence lives in
   the table and the zero-row message, so "we don't know your session" is
   readable in the output a human sees. `--json` is unchanged — the notice
   is a rendering, not a row.
+- **Both vendored review agents now declare `excludeDefaultComponents: true`
+  and `tools: []`** (modernize-127 M4). agy 1.1.25+ gives a Markdown-defined
+  custom agent **ambient inheritance** — the reviewed workspace's own
+  skills, rules, and subagents by default — which would make a review's
+  behavior a function of whatever repo it happens to be reviewing rather
+  than a fixed, **hermetic review** instrument; `excludeDefaultComponents:
+  true` opts back out. `tools: []`, not a non-empty list, is the
+  evidence-backed choice: `docs/json-schema-verdict.md`'s Run 3 (the
+  shipped, non-schema-enforced arm this plugin uses) shows agy-review
+  making zero tool calls — the diff is embedded in the prompt and
+  `--sandbox` soft-denies tool confirmations regardless — while the only
+  concrete evidence in this repo about what a non-empty `tools:` list does
+  in this headless print-mode path is the M2-era crash recorded in both
+  agent files' own PROVENANCE blocks (`tools: [read_file, grep_search,
+  glob]` → `failed to construct executor: no tool converter registered for
+  read_file`, before any model call). agy 1.2.7 retired `find_by_name`,
+  `grep_search`, and `list_dir` from the *default* tool baseline while
+  keeping them available to a custom agent that explicitly lists them, but
+  nothing here shows any of those three (or any other name) is a valid
+  converter in this path either — an empty list is the only choice the
+  evidence supports.
+- **`setup.MIN_AGY_VERSION` moved from 1.1.11 to 1.2.7** (modernize-127 M4),
+  for the change above: below 1.2.7 the *default* tool baseline differs
+  from 1.2.7's, so the vendored agents' declared `tools: []` would resolve
+  against a different implicit baseline and could behave differently on an
+  older binary. This repo supports one agy binary at a time, no dual code
+  path, so the floor moves to the version the frontmatter was written
+  against rather than carrying two `tools:` semantics.
 
 ## Never
 

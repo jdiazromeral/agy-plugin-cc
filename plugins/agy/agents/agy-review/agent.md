@@ -1,6 +1,8 @@
 ---
 name: agy-review
 description: Reviews a working-tree diff or branch diff for bugs and reports findings as strict JSON (no PR fixes, no edits).
+excludeDefaultComponents: true
+tools: []
 ---
 
 <!--
@@ -56,6 +58,28 @@ the diff directly in the prompt instead of relying on agy-review reading it
 via tools. Any future change that wants agy-review to explore files on
 its own must re-investigate which tool names (if any) are valid print-mode
 converters before restoring a `tools:` list.
+
+Third deviation, added in mission M4 (modernize-127): `excludeDefaultComponents:
+true` and an explicit `tools: []` were declared above. agy 1.1.25+ gives a
+Markdown-defined custom agent **ambient inheritance** — the workspace's own
+skills, rules, and subagents by default — which would make a review's
+behavior a function of whatever the *reviewed* repo happens to carry rather
+than a fixed, **hermetic review** instrument; `excludeDefaultComponents: true`
+switches that off. The paired `tools: []` (rather than any non-empty list) is
+evidence-backed, not a placeholder: `docs/json-schema-verdict.md`'s Run 3 (the
+shipped, non-schema-enforced arm this plugin actually uses) shows agy-review
+making zero tool calls in practice — the diff is embedded directly in the
+prompt and `--sandbox` soft-denies tool confirmations regardless — and the
+"no tool converter registered for read_file" crash recorded two paragraphs
+above (M2's `tools: [read_file, grep_search, glob]` attempt) is the only
+concrete evidence in this repo about what a `tools:` list does in this
+headless print-mode path, and it points at catastrophic failure, not
+support. agy 1.2.7 retired `find_by_name`, `grep_search`, and `list_dir` from
+the default tool baseline while keeping them available to custom agents that
+explicitly list them, but nothing in this repo's evidence shows any of those
+three names (or any other name) is a valid converter here either. Given real
+evidence points only one direction and a wrong guess repeats the same crash
+already observed once, `tools: []` is the correct, non-speculative choice.
 -->
 
 # Agent System Instructions

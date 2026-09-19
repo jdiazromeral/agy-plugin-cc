@@ -216,7 +216,7 @@ class AgyVersionFloorTest(unittest.TestCase):
                 bin_dir,
                 behavior="authenticated_with_agents",
                 extra_args=["--json"],
-                agy_version="1.2.0",
+                agy_version="1.3.0",
             )
 
         payload = json.loads(result.stdout)
