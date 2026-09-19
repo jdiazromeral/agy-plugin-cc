@@ -292,14 +292,18 @@ class AdversarialAgentFileTest(unittest.TestCase):
         self.assertRegex(frontmatter, r"(?m)^name:\s*agy-adversarial-review\s*$")
         self.assertRegex(frontmatter, r"(?m)^description:\s*\S")
 
-    def test_frontmatter_does_not_declare_a_tools_field(self):
-        # A `tools:` field crashes headless `agy -p --sandbox --new-project`
-        # runs (docs/review-schema-verdict.md Finding C) — same constraint
-        # as agy-review's agent.md.
+    def test_frontmatter_declares_an_empty_tools_field(self):
+        # A non-empty `tools:` field crashes headless
+        # `agy -p --sandbox --new-project` runs (docs/review-schema-verdict.md
+        # Finding C) — same constraint as agy-review's agent.md. modernize-127
+        # M4 pairs that with `excludeDefaultComponents: true` to restore a
+        # **hermetic review**, which requires an explicit (empty) `tools:`
+        # rather than an absent one — see this file's own PROVENANCE block.
         text = self._read()
         match = FRONTMATTER_RE.match(text)
         frontmatter = match.group(1)
-        self.assertNotRegex(frontmatter, r"(?m)^tools:")
+        self.assertRegex(frontmatter, r"(?m)^excludeDefaultComponents:\s*true\s*$")
+        self.assertRegex(frontmatter, r"(?m)^tools:\s*\[\s*\]\s*$")
 
     def test_body_has_h1_heading_delimiting_system_prompt(self):
         text = self._read()
