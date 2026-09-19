@@ -26,8 +26,11 @@ CREATED_CONVERSATION_RE = re.compile(r"Created conversation ([0-9a-fA-F-]+)")
 # `/agy:status` showing no conversation for a background delegate **job**
 # (which stores `conversation: None` at launch) and break the next
 # `--resume`. Also read live by `tools/live_delegate_capture.probe_fresh_run`.
+# Supports both legacy agy 1.1.x ("Stream completed for <uuid>, clearing ResponsePending")
+# and agy 1.2.6+ ("Stream goroutine exited for <uuid>, sending completion signal").
 COMPLETION_MARKER_RE = re.compile(
-    r"Stream completed for ([0-9a-fA-F-]+), clearing ResponsePending"
+    r"Stream (?:completed|goroutine exited) for ([0-9a-fA-F-]+), "
+    r"(?:clearing ResponsePending|sending completion signal)"
 )
 
 

@@ -58,6 +58,7 @@ agy's silent 5-minute default. This is not a claim that agy has an
 the honest stand-in for "no ceiling", not a pretense of infinity.
 """
 import argparse
+import json
 import subprocess
 
 # Default foreground subprocess timeout, overridable per-call via
@@ -175,3 +176,37 @@ def _spawn_detached(cmd, cwd, stdout_path=None):
         # immediately without truncating the child's writes.
         if stdout_handle is not None:
             stdout_handle.close()
+
+
+def parse_agy_error(stderr_text):
+    """Extract structured AGY_ERROR payload (agy 1.2.6+) from stderr if present.
+    In agy 1.2.6+, headless API or agent failures emit a structured
+    `AGY_ERROR: {"code": ..., "status": ..., "message": ...}` JSON line on stderr
+    and exit with code 3."""
+    if not stderr_text:
+        return None
+    for line in stderr_text.splitlines():
+        line = line.strip()
+        if line.startswith("AGY_ERROR:"):
+            payload = line[len("AGY_ERROR:"):].strip()
+            try:
+                data = json.loads(payload)
+                if isinstance(data, dict):
+                    return data
+            except json.JSONDecodeError:
+                pass
+    return None
+
+
+def format_agy_error(stderr_text):
+    """Format an agy stderr string for human presentation. If an AGY_ERROR
+    payload is present, format it cleanly; otherwise return stripped stderr."""
+    err = parse_agy_error(stderr_text)
+    if err:
+        msg = err.get("message") or err.get("error") or err.get("status")
+        code = err.get("code") or err.get("error_code")
+        if msg and code:
+            return "agy error [{}]: {}".format(code, msg)
+        if msg:
+            return "agy error: {}".format(msg)
+    return stderr_text.strip() if stderr_text else ""

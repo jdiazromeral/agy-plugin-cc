@@ -3,25 +3,23 @@
 Use the **Antigravity CLI (`agy`)** from inside Claude Code — for code review, or
 to delegate tasks and track them in the background.
 
-> **Status: pre-alpha.** All seven commands below are implemented and covered
-> by an offline test suite (399 tests against a fake `agy` on `PATH`, never
-> the real binary — `make check` prints the authoritative count; this number
-> is a snapshot and goes stale, as it already has twice).
+> **Status: pre-alpha (v0.3.0).** All seven commands below are implemented and covered
+> by an offline test suite (410 tests against a fake `agy` on `PATH`, never
+> the real binary — `make check` prints the authoritative count).
 >
 > **All seven commands have been run end to end against a real, authenticated
-> `agy`, re-verified on 1.1.19** (2026-08-24, via `make check-live` / `agy_companion.py setup`):
+> `agy`, re-verified on 1.2.6** (2026-09-19, via `make check-live` / `agy_companion.py setup`):
 > `/agy:review` and `/agy:adversarial-review` producing schema-conforming
 > findings; `/agy:delegate` fresh, `--resume`, and `--background`;
 > `/agy:status` against a job both mid-flight and finished; `/agy:result`
 > harvesting a real stored result; and `/agy:cancel` killing a real
-> mid-stream process, verified dead by PID. The evidence is committed, not
-> asserted — see `docs/review-schema-verdict.md` and the captures under
-> `tests/fixtures/`, each with its own PROVENANCE note.
+> mid-stream process, verified dead by PID. Includes Claude Code session
+> lifecycle hooks (`SessionStart`/`SessionEnd`) and native `evals/` test cases.
+> The evidence is committed, not asserted — see `docs/review-schema-verdict.md`
+> and the captures under `tests/fixtures/`, each with its own PROVENANCE note.
 >
 > Re-verify after any `agy` upgrade with `make check-live` (spends one trivial
-> live run) or `make check-live-free` (spends nothing). The offline suite
-> drives a fake, and a fake is only as good as the last time someone checked
-> it against the binary — that gap has already hidden two shipped defects.
+> live run) or `make check-live-free` (spends nothing).
 
 This is a port of [`openai/codex-plugin-cc`](https://github.com/openai/codex-plugin-cc)
 (Apache-2.0) from Codex to Antigravity.
@@ -58,7 +56,7 @@ defects and recorded here so they aren't re-derived:
   command execution path for a directory marketplace like this one.
 - **The cache is real and IS version-keyed**, off
   `.claude-plugin/marketplace.json`'s `metadata.version` /
-  `plugins[].version` (currently `0.2.0`). `claude plugin marketplace
+  `plugins[].version` (currently `0.3.0`). `claude plugin marketplace
   update` alone will **not** refresh a stale cache while that version
   string stays the same — only `/plugin uninstall` followed by `/plugin
   install` does. This is a note about install/update mechanics for anyone

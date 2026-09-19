@@ -6,13 +6,13 @@
   },
   "metadata": {
     "description": "Use the Antigravity CLI (agy) from Claude Code for code review and task delegation.",
-    "version": "0.2.0"
+    "version": "0.3.0"
   },
   "plugins": [
     {
       "name": "agy",
       "description": "Use agy from Claude Code to review code or delegate tasks.",
-      "version": "0.2.0",
+      "version": "0.3.0",
       "author": {
         "name": "Javi Díaz",
         "url": "https://github.com/jdiazromeral"

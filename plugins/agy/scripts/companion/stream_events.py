@@ -67,12 +67,16 @@ class EventStream:
     usage: Optional[Dict[str, Any]]
     step_updates: Tuple[StepUpdate, ...]
     error: Optional[str] = None
+    structured_output: Optional[Dict[str, Any]] = None
 
     def parsed_response(self):
         """**Tolerant parse** of `response` as JSON. Returns the parsed
-        object, or `None` if `response` is absent, has no JSON object in it,
-        is malformed, or (per `docs/json-schema-verdict.md`) is several JSON
-        objects concatenated with no delimiter. Never raises."""
+        object (from `structured_output` if present, else parsed from
+        `response`), or `None` if absent, malformed, or (per
+        `docs/json-schema-verdict.md`) several JSON objects concatenated
+        with no delimiter. Never raises."""
+        if isinstance(self.structured_output, dict):
+            return self.structured_output
         if not self.response:
             return None
         candidate = _extract_json_object(self.response)
@@ -98,6 +102,7 @@ def parse_event_stream(text):
     response = None
     usage = None
     error = None
+    structured_output = None
     step_updates = []
 
     for line in text.splitlines():
@@ -136,6 +141,7 @@ def parse_event_stream(text):
             response = payload.get("response")
             usage = payload.get("usage")
             error = payload.get("error")
+            structured_output = payload.get("structured_output")
 
     return EventStream(
         conversation_id=conversation_id,
@@ -144,6 +150,7 @@ def parse_event_stream(text):
         usage=usage,
         step_updates=tuple(step_updates),
         error=error,
+        structured_output=structured_output,
     )
 
 

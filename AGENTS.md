@@ -88,12 +88,13 @@ Verified empirically against `agy` 1.1.6 on 2026-07-24. Full evidence lives in
   so `--conversation <bogus> --model bogus-model-xyz` captures the whole
   trace with no conversation created and no model call. `make
   check-live-free` runs exactly this. Extends Finding A beyond agent binding.
-- **The completion marker is real, and its source file is not what the fake
-  said.** Verified live on 1.1.8: `conversation_manager.go:666] Stream
-  completed for <uuid>, clearing ResponsePending`. Also note
-  `Created conversation` moved from `server.go:934` (1.1.6) to
-  `server.go:1007` (1.1.8) — which is precisely why none of these regexes may
-  anchor on a file name or line number.
+- **The completion marker is real, and its wording evolved across agy versions.**
+  Verified live on 1.1.8-1.1.19: `Stream completed for <uuid>, clearing ResponsePending`.
+  In agy 1.2.6: `server.go:1234] Stream goroutine exited for <uuid>, sending completion signal`.
+  `COMPLETION_MARKER_RE` matches both variants. Also note `Created conversation`
+  moved across files (e.g. `server.go:934` in 1.1.6 to `server.go:1177` in 1.2.6)
+  — which is precisely why none of these regexes may anchor on a file name or
+  line number.
 - **Never validate a regex against `tests/fake_agy.py`.** The fake's log lines
   were written from memory and have hidden two shipped defects that way (an
   agent that could never bind, and a fallback guard matching only

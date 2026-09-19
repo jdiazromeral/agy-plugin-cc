@@ -132,6 +132,19 @@ class ParsedResponseTest(unittest.TestCase):
         # attempting (and failing) a whole-string json.loads.
         self.assertEqual(record.parsed_response(), {"a": 1})
 
+    def test_structured_output_preferred_when_present(self):
+        # When agy emits structured_output (e.g. from --json-schema),
+        # parsed_response returns it directly.
+        record = EventStream(
+            conversation_id="x",
+            status="SUCCESS",
+            response='raw unparsed text',
+            usage=None,
+            step_updates=(),
+            structured_output={"verdict": "pass", "count": 42},
+        )
+        self.assertEqual(record.parsed_response(), {"verdict": "pass", "count": 42})
+
 
 class EmptyAndMinimalStreamTest(unittest.TestCase):
     def test_empty_text_returns_all_none_and_no_step_updates(self):
@@ -174,6 +187,15 @@ class EmptyAndMinimalStreamTest(unittest.TestCase):
         result = parse_event_stream(result_line)
         self.assertEqual(result.status, "ERROR")
         self.assertEqual(result.error, "killed: run exceeded print timeout")
+
+    def test_structured_output_is_populated_when_present_on_result_event(self):
+        result_line = (
+            '{"event": "result", "result": {"status": "SUCCESS", '
+            '"structured_output": {"findings": []}}}'
+        )
+        result = parse_event_stream(result_line)
+        self.assertEqual(result.status, "SUCCESS")
+        self.assertEqual(result.structured_output, {"findings": []})
 
 
 if __name__ == "__main__":

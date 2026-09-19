@@ -99,6 +99,14 @@ class FreshRunTest(unittest.TestCase):
         self.assertIsNotNone(match, "completion marker not found in a real completed run")
         self.assertEqual(match.group(1), _CAPTURED_UUID)
 
+    def test_modern_126_completion_marker_matches(self):
+        """agy 1.2.6+ emits 'Stream goroutine exited for <uuid>, sending completion signal'
+        instead of 'Stream completed for <uuid>, clearing ResponsePending'."""
+        line = "I0918 20:48:26.099373 747 server.go:1234] Stream goroutine exited for 1f83e2fb-4c63-48c6-b26f-55c71adef976, sending completion signal"
+        match = COMPLETION_MARKER_RE.search(line)
+        self.assertIsNotNone(match, "modern 1.2.6 completion marker line did not match")
+        self.assertEqual(match.group(1), "1f83e2fb-4c63-48c6-b26f-55c71adef976")
+
     def test_no_fallback_or_not_found_traces_in_a_clean_run(self):
         log = _read(_FRESH)
         self.assertIsNone(FALLBACK_RE.search(log))
