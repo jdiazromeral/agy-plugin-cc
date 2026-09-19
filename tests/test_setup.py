@@ -241,6 +241,36 @@ class AgyVersionFloorTest(unittest.TestCase):
         payload = json.loads(result.stdout)
         self.assertFalse(payload["agy"]["version_supported"])
 
+    def test_min_agy_version_is_1_2_7(self):
+        """The floor moved to 1.2.7 (see MIN_AGY_VERSION's comment in
+        setup.py, modernize-127 M4 entry): below 1.2.7 the default tool
+        baseline differs from 1.2.7's (which retired find_by_name,
+        grep_search, and list_dir from it), so a declared `tools:` list on
+        the vendored review agents would behave differently on an older
+        binary, and this repo supports one agy binary at a time with no
+        dual code path."""
+        self.assertEqual(setup_module.MIN_AGY_VERSION, (1, 2, 7))
+        self.assertEqual(setup_module.MIN_AGY_VERSION_STR, "1.2.7")
+
+    def test_1_1_11_is_now_below_the_floor(self):
+        """1.1.11 was the previous floor (see the AgyVersionFloorTest class
+        docstring and setup.py's version-floor history comment). Now that
+        the floor is 1.2.7, a binary previously AT the old floor must report
+        below the new one — the regression guard for the modernize-127 M4
+        bump."""
+        with tempfile.TemporaryDirectory() as tmp:
+            bin_dir = Path(tmp)
+            _install_fake_agy(bin_dir)
+            result = _run_setup(
+                bin_dir,
+                behavior="authenticated_with_agents",
+                extra_args=["--json"],
+                agy_version="1.1.11",
+            )
+
+        payload = json.loads(result.stdout)
+        self.assertFalse(payload["agy"]["version_supported"])
+
 
 class StreamJsonCapabilityTest(unittest.TestCase):
     """The doctor's distinct, actionable signal for whether the installed

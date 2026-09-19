@@ -10,6 +10,9 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 AGENT_MD = REPO_ROOT / "plugins" / "agy" / "agents" / "agy-review" / "agent.md"
+ADVERSARIAL_AGENT_MD = (
+    REPO_ROOT / "plugins" / "agy" / "agents" / "agy-adversarial-review" / "agent.md"
+)
 NOTICE = REPO_ROOT / "NOTICE"
 LICENSE = REPO_ROOT / "LICENSE"
 FIXTURES_DIR = REPO_ROOT / "tests" / "fixtures" / "review"
@@ -73,6 +76,44 @@ class AgentFileTest(unittest.TestCase):
         text = _read(AGENT_MD).lower()
         for word in ("broker", "app-server", "remote control"):
             self.assertNotIn(word, text)
+
+
+class HermeticFrontmatterTest(unittest.TestCase):
+    """Both vendored review agents must opt out of agy 1.1.25+'s ambient
+    inheritance so a review's behavior is a fixed, hermetic instrument
+    rather than a function of whatever skills/rules/subagents the reviewed
+    workspace happens to carry. Checked by name against BOTH agent files —
+    this module's validator (tests.test_review_agent) is the only one that
+    runs for agy-adversarial-review too, since tests.test_adversarial_review
+    is not part of this mission's validator command."""
+
+    def _frontmatter(self, agent_md):
+        text = _read(agent_md)
+        match = FRONTMATTER_RE.match(text)
+        self.assertIsNotNone(
+            match, "{} must open with --- delimited frontmatter".format(agent_md)
+        )
+        return match.group(1)
+
+    def test_agy_review_excludes_default_components(self):
+        frontmatter = self._frontmatter(AGENT_MD)
+        self.assertRegex(
+            frontmatter, r"(?m)^excludeDefaultComponents:\s*true\s*$"
+        )
+
+    def test_agy_review_declares_explicit_tools_list(self):
+        frontmatter = self._frontmatter(AGENT_MD)
+        self.assertRegex(frontmatter, r"(?m)^tools:\s*\[\s*\]\s*$")
+
+    def test_agy_adversarial_review_excludes_default_components(self):
+        frontmatter = self._frontmatter(ADVERSARIAL_AGENT_MD)
+        self.assertRegex(
+            frontmatter, r"(?m)^excludeDefaultComponents:\s*true\s*$"
+        )
+
+    def test_agy_adversarial_review_declares_explicit_tools_list(self):
+        frontmatter = self._frontmatter(ADVERSARIAL_AGENT_MD)
+        self.assertRegex(frontmatter, r"(?m)^tools:\s*\[\s*\]\s*$")
 
 
 class LicenseFileTest(unittest.TestCase):
