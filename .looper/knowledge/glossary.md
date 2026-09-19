@@ -170,6 +170,39 @@ Where a term has a tempting synonym, the wrong word is named explicitly.
   stream** rather than trusting a recorded **terminal status**. Not "stalled" — a
   **stall** describes a job that may still be alive.
 
+## Terms added by the `modernize-127` epic
+
+- **orphan** — a **job** whose **session** has ended while its process is still
+  alive, established by checking the recorded pid, never assumed from the
+  session's absence. Distinct from both neighbours on purpose: a **zombie job**
+  is a dead process whose row still reads `running`, and a **stall** is a live
+  process that has gone quiet. An orphan is healthy; only its launcher is gone.
+  Not "leaked job", not "detached job" — every background job is detached.
+- **denied action** — a tool action `agy` refused to take in print mode, listed
+  as `denied_actions` in its JSON output since 1.1.27. Under `--sandbox` every
+  tool confirmation is soft-denied, so a denied action is the normal shape of a
+  **degraded** review, not an error: the run still exits 0 and still reports a
+  **verdict**. Never render that verdict without the denied actions beside it.
+- **ambient inheritance** — `agy` 1.1.25+ giving a Markdown-defined custom agent
+  the workspace's skills, rules and subagents by default, the way its built-in
+  agents get them. What `excludeDefaultComponents: true` switches off. Not
+  "context leak" — it is documented, intended behaviour that this plugin opts
+  out of because a review must not vary with the reviewed repo's own skills.
+- **hermetic review** — a review whose instructions are exactly the vendored
+  agent prompt plus the prompt the **companion** built, with no **ambient
+  inheritance**. The property M4 restores. Read-scoping is still not implied:
+  `agy` walks up to parent `AGENTS.md`/`CONTEXT.md` regardless.
+- **model invocation** — Claude Code firing one of this plugin's commands on its
+  own judgement, rather than the user typing it. Possible because 2.1.x exposes
+  plugin commands as skills, and refused per command with
+  `disable-model-invocation: true`. The opposite is **user invocation**. Not
+  "auto-run".
+- **execution mode** — `agy --mode` (`accept-edits`, `plan`), the axis that
+  decides how much a run may do without asking. Not "permission mode" and not
+  "sandbox": `--sandbox` and `--dangerously-skip-permissions` are separate
+  flags on a separate axis, and conflating the three is how a write-capable
+  profile gets described as safe.
+
 ## Words we do not use
 
 - **broker** — upstream's persistent app-server multiplexer. There is nothing to
