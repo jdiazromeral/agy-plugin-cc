@@ -1,0 +1,27 @@
+scratch_root: <SCRATCH>
+repo: <SCRATCH>/repo
+state_file: <SCRATCH>/plugin-data/state/repo-b6248efb67649ad4/state.json
+probe1_session_id: f16ec90e-df67-46ed-a276-52e313bdfced
+probe2_session_id: 253bdb48-16d1-4309-907f-3d8f40f08474
+seeded_jobs: seeded-match-job (session_id == probe1_session_id), seeded-other-job (session_id == 'SENTINEL-NOT-THE-CAPTURED-SESSION')
+
+probe1 exit_code: 0
+probe1 stdout_file: <SCRATCH>/probe1-agy-status.stream.ndjson
+probe1 stderr_file: <SCRATCH>/probe1-agy-status.stderr.txt
+PLUGIN DIRECTORY THE CAPTURED RUN LOADED (measured, not assumed):
+  init event plugins[agy].path    : /Users/REDACTED/workspace/code/japan4/work/lab/agy-plugin-cc/plugins/agy
+  init event plugins[agy].version : 0.3.0
+  expanded ${CLAUDE_PLUGIN_ROOT} in tool_use command: python3 "/Users/REDACTED/workspace/code/japan4/work/lab/agy-plugin-cc/plugins/agy/scripts/agy_companion.py" status
+  NOTE: this is the marketplace-registered install, which is NOT this
+        repo checkout unless the two paths above are this checkout: /Users/REDACTED/workspace/code/japan4/work/worktrees/agy-modernize-127-M3
+SessionStart hook_response event: {"hook_name": "SessionStart:startup", "exit_code": 0, "outcome": "success", "stderr": ""}
+
+probe1 companion output rows: match=True other=False empty_scoped_note=False
+
+probe2 exit_code: 0
+probe2 stdout_file: <SCRATCH>/probe2-env-value.stream.ndjson
+probe2 stderr_file: <SCRATCH>/probe2-env-value.stderr.txt
+probe2 scripts_dir under test: /Users/REDACTED/workspace/code/japan4/work/lab/agy-plugin-cc/plugins/agy/scripts
+probe2 captured bytes: MEASURED_ENV AGY_COMPANION_SESSION_ID='253bdb48-16d1-4309-907f-3d8f40f08474'
+
+PASS: AGY_COMPANION_SESSION_ID reaches a companion subprocess. Probe 1's session-scoped table showed only the job whose session_id equals the pinned --session-id, and probe 2 printed the literal value.

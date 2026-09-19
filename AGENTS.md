@@ -268,6 +268,40 @@ Verified empirically against `agy` 1.1.6 on 2026-07-24. Full evidence lives in
   URLs are the docs' own example for exactly this field. `claude plugin
   validate .` and `claude plugin validate plugins/agy` both still pass
   with the field added (confirmed against 2.1.278).
+- **The SessionStart hook works end to end: `AGY_COMPANION_SESSION_ID`
+  really does reach a companion subprocess.** Measured 2026-09-19 against
+  Claude Code 2.1.278 by two real `claude -p --output-format stream-json`
+  runs (`tools/live_session_hook_capture.py`; no `agy` invoked, Claude
+  tokens only), committed as `tests/fixtures/session_hook/`. Both epic
+  hypotheses are refuted. (a) "the hooks never ran, because the stale
+  0.2.0 install cache has no `hooks/` directory" — the stream carries
+  exactly one `{"subtype":"hook_response","hook_event":"SessionStart",
+  "exit_code":0,"outcome":"success","stderr":""}` event, and the `init`
+  event's `plugins[]` table names the loaded agy plugin as **version
+  0.3.0** at the directory-marketplace source path, not the cache: for a
+  **directory** marketplace the version-keyed cache under
+  `~/.claude/plugins/cache/` is not in the execution path at all, however
+  stale `installed_plugins.json` looks. (b) "the variable does not reach a
+  companion" — a `python3` tool call printed
+  `AGY_COMPANION_SESSION_ID='253bdb48-16d1-4309-907f-3d8f40f08474'`,
+  exactly the uuid pinned with `--session-id`, and a `/agy:status` run over
+  a **state dir** seeded with two **job**s returned only the one whose
+  `session_id` matched. No code fix was needed; nothing under `plugins/`
+  changed. Two things this capture did NOT test: whether the variable
+  reaches a **job** spawned detached with `--background` (only foreground
+  tool calls were observed), and whether any of this holds for a plugin
+  installed from a **git** marketplace rather than a directory one.
+- **A captured `claude -p` run states its own plugin resolution — read it,
+  never assume it.** Two independent places in the stream, both verified
+  2026-09-19: the `init` system event's `plugins[]` array (`{"name","path",
+  "source","version"}` per loaded plugin) and the expanded
+  `${CLAUDE_PLUGIN_ROOT}` inside the `tool_use` block's `command` string.
+  This matters because a plugin installed from a directory marketplace
+  loads from the **marketplace's source checkout**, not from whatever
+  worktree a mission is working in: `tools/live_session_hook_capture.py`
+  deliberately passes no `--plugin-dir`, so anyone editing `plugins/` and
+  re-running it captures the OLD code unless they override it. Check the
+  two fields before presenting a capture as proof of a change.
 
 ## Never
 
