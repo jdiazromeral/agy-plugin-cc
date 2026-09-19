@@ -13,6 +13,13 @@ and its human-readable `error` are rendered directly, ahead of both the
 `.response` harvest and the raw-text fallback: an ERROR result event's
 `response` is empty by definition.
 
+For a `review`-**kind** job, the harvested **result event**'s
+`denied_actions` (glossary: **denied action**) is threaded into
+`review_output.render_review` alongside the harvested text, exactly as
+`companion.review._run_live_review` already does for the live path — a
+stored review is never rendered without its degradation notice just
+because it came from `/agy:result` instead of the foreground run.
+
 Never re-invokes agy and never re-derives a review from the log. The log is
 consulted (via status.build_job_row) only to confirm the job has actually
 finished before trusting its output_file.
@@ -152,7 +159,8 @@ def _render_result(job):
         harvested = text
 
     if job.get("kind") == "review":
-        return render_review(tolerant_parse(harvested))
+        denied_actions = event_stream.denied_actions if event_stream is not None else ()
+        return render_review(tolerant_parse(harvested), denied_actions=denied_actions)
     return harvested
 
 

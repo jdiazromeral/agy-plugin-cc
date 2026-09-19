@@ -18,6 +18,13 @@ from companion.stream_events import EventStream, StepUpdate, parse_event_stream 
 FIXTURES = REPO_ROOT / "tests" / "fixtures" / "stream_events"
 _RUN1 = FIXTURES / "2026-08-02-run1.ndjson"
 
+_DENIED_ACTIONS_RUN1 = (
+    REPO_ROOT / "tests" / "fixtures" / "denied_actions" / "2026-09-20-run1.ndjson"
+)
+_COMMAND_RESULT_RUN1 = (
+    REPO_ROOT / "tests" / "fixtures" / "command_result" / "2026-09-20-run1.ndjson"
+)
+
 _CAPTURED_UUID = "a4425612-2b6c-4e0c-a9b5-e7600418be81"
 
 
@@ -86,6 +93,98 @@ class ParseEventStreamTest(unittest.TestCase):
         first = self.result.step_updates[0]
         self.assertEqual(first.step_type, "user_input")
         self.assertEqual(first.state, "DONE")
+
+    def test_denied_actions_absent_from_this_capture_is_an_empty_collection(self):
+        # This capture predates denied_actions (added in agy 1.1.27) --
+        # the field is absent from its result event entirely. Must render
+        # as an empty collection, never None. See
+        # tests/fixtures/denied_actions/ for a real capture that DOES
+        # carry one.
+        self.assertEqual((), self.result.denied_actions)
+
+    def test_command_absent_from_this_capture_is_none(self):
+        self.assertIsNone(self.result.command)
+
+
+class DeniedActionsFixtureTest(unittest.TestCase):
+    """`denied_actions` parsing, held against the real **denied action**
+    capture in `tests/fixtures/denied_actions/` (see that directory's
+    PROVENANCE.md) -- captured via agy's own default agent, never through
+    `/agy:review`'s or `/agy:adversarial-review`'s own command vector
+    (both vendored review agents declare `tools: []`, so neither can
+    produce a denied_actions entry today)."""
+
+    def test_result_event_denied_actions_parsed_from_the_real_capture(self):
+        result = parse_event_stream(_read(_DENIED_ACTIONS_RUN1))
+        self.assertEqual(
+            ({"action": "write_file", "display_name": "WriteToFile"},),
+            result.denied_actions,
+        )
+
+    def test_status_is_success_despite_the_denial(self):
+        # A denied action is not fatal -- the run still exits 0 and still
+        # reports a verdict (glossary: **degraded**, not an error).
+        result = parse_event_stream(_read(_DENIED_ACTIONS_RUN1))
+        self.assertEqual("SUCCESS", result.status)
+
+    def test_response_is_the_empty_string_not_none(self):
+        result = parse_event_stream(_read(_DENIED_ACTIONS_RUN1))
+        self.assertEqual("", result.response)
+
+
+class CommandResultFixtureTest(unittest.TestCase):
+    """`command_result` event recognition, held against the real capture in
+    `tests/fixtures/command_result/` (see that directory's PROVENANCE.md)."""
+
+    _EXPECTED_COMMAND = {
+        "name": "model",
+        "data": {
+            "id": "gemini-3.8-flash-medium",
+            "label": "Gemini 3.8 Flash (Medium)",
+            "effort": "medium",
+            "is_default": False,
+        },
+    }
+
+    def test_command_parsed_from_the_dedicated_command_result_event(self):
+        result = parse_event_stream(_read(_COMMAND_RESULT_RUN1))
+        self.assertEqual(self._EXPECTED_COMMAND, result.command)
+
+    def test_response_is_the_plain_text_answer(self):
+        result = parse_event_stream(_read(_COMMAND_RESULT_RUN1))
+        self.assertEqual("gemini-3.8-flash-medium\tGemini 3.8 Flash (Medium)\n", result.response)
+
+    def test_stream_with_no_init_event_still_parses(self):
+        # A read-only slash-command probe never starts a conversation, so
+        # this real capture has no init event at all -- the parser must
+        # not assume one always arrives first.
+        result = parse_event_stream(_read(_COMMAND_RESULT_RUN1))
+        self.assertEqual("SUCCESS", result.status)
+
+    def test_result_events_own_command_key_matches_the_dedicated_event(self):
+        # Both the dedicated command_result line and the terminal result
+        # event's own `command` key carry the same payload in this real
+        # capture -- a stream truncated before the dedicated line must
+        # still recover the command from the result event alone. Proven
+        # directly here by reading the command_result-only case below.
+        lines = _read(_COMMAND_RESULT_RUN1).splitlines()
+        result_only = lines[-1]  # the terminal result event alone
+        result = parse_event_stream(result_only)
+        self.assertEqual(self._EXPECTED_COMMAND, result.command)
+
+
+class UnknownEventKindStillIgnoredTest(unittest.TestCase):
+    """Hand-written, synthetic -- pins that a genuinely unknown event kind
+    (never `init`/`step_update`/`result`/`command_result`) is still
+    silently ignored exactly as before, per the module's own documented
+    "unknown kinds are ignored" design."""
+
+    def test_genuinely_unknown_event_kind_is_ignored_not_rejected(self):
+        line = '{"event": "some_future_event_kind", "some_future_event_kind": {"x": 1}}'
+        result = parse_event_stream(line)
+        self.assertIsNone(result.status)
+        self.assertEqual((), result.denied_actions)
+        self.assertIsNone(result.command)
 
 
 class ParsedResponseTest(unittest.TestCase):
@@ -196,6 +295,29 @@ class EmptyAndMinimalStreamTest(unittest.TestCase):
         result = parse_event_stream(result_line)
         self.assertEqual(result.status, "SUCCESS")
         self.assertEqual(result.structured_output, {"findings": []})
+
+    def test_denied_actions_absent_on_a_hand_written_result_event_is_empty(self):
+        # Hand-written, synthetic -- pins the default independent of any
+        # captured fixture.
+        result_line = '{"event": "result", "result": {"status": "SUCCESS"}}'
+        result = parse_event_stream(result_line)
+        self.assertEqual((), result.denied_actions)
+
+    def test_denied_actions_present_but_empty_on_the_result_event_stays_empty(self):
+        # Hand-written, synthetic -- an explicit empty list must render
+        # identically to an absent key, never None either way.
+        result_line = '{"event": "result", "result": {"status": "SUCCESS", "denied_actions": []}}'
+        result = parse_event_stream(result_line)
+        self.assertEqual((), result.denied_actions)
+
+    def test_command_result_event_populates_command(self):
+        # Hand-written, synthetic -- pins the dedicated command_result
+        # event kind's field name independent of any captured fixture.
+        line = (
+            '{"event": "command_result", "command": {"name": "usage", "data": {"x": 1}}}'
+        )
+        result = parse_event_stream(line)
+        self.assertEqual({"name": "usage", "data": {"x": 1}}, result.command)
 
 
 if __name__ == "__main__":

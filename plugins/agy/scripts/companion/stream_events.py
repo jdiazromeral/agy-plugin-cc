@@ -3,10 +3,20 @@
 
 The **event stream** is NDJSON: one JSON object per line, an **init event**
 first, then N **step update**s as the run proceeds, then exactly one
-**result event** carrying `conversation_id`, `status`, `response`, and
-`usage` (glossary). This module reads that stream and produces an
-`EventStream` record exposing those fields plus the ordered **step update**
-sequence.
+**result event** carrying `conversation_id`, `status`, `response`, `usage`,
+and (since 1.1.27) `denied_actions` (glossary). A `command_result` event —
+a read-only slash-command's structured answer, emitted before the terminal
+**result event** (since 1.1.11) — is also recognized; it carries no
+**init event** or **step update**s of its own (a read-only slash command
+never starts a conversation), so a stream consisting of only a
+`command_result` line followed by a `result` line is a valid, real shape
+(see `tests/fixtures/command_result/PROVENANCE.md`), not a truncated one.
+This module reads that stream and produces an `EventStream` record exposing
+those fields plus the ordered **step update** sequence.
+
+Every OTHER event kind remains genuinely unrecognized and is silently
+ignored, exactly as before: a future `agy` adding a new event kind degrades
+gracefully instead of breaking every caller.
 
 This sits *beside* the `--log-file` reader (`companion/agy_log.py`), not in
 place of it: the stream carries no agent field, so the **bind** check keeps
@@ -59,7 +69,24 @@ class EventStream:
     **result event** carries no `error` key (every `SUCCESS` fixture in
     this repo). On a real ERROR **result event** from a `--print-timeout`
     expiry, `error` reads `"timeout waiting for response"` — see
-    `tests/fixtures/error_result/PROVENANCE.md`."""
+    `tests/fixtures/error_result/PROVENANCE.md`.
+
+    `denied_actions` is the **result event**'s `denied_actions` list (since
+    agy 1.1.27): one entry per tool action `agy` refused in print mode (see
+    the glossary's **denied action** entry). Always a tuple, never `None`
+    -- absent or empty on the source JSON both render as `()`, so a caller
+    never has to special-case "missing" versus "empty". See
+    `tests/fixtures/denied_actions/PROVENANCE.md` for the real capture this
+    is proven against (agy's own default agent, not either vendored review
+    agent -- see that file for why).
+
+    `command` is the `command` payload a read-only slash command answers
+    with (`{name, data}`; since agy 1.1.11) -- read from the dedicated
+    `command_result` event when present, and from the **result event**'s
+    own `command` key otherwise (both carry the identical payload in every
+    real capture observed so far; see
+    `tests/fixtures/command_result/PROVENANCE.md`). `None` when neither is
+    present, e.g. every review/delegate capture in this repo."""
 
     conversation_id: Optional[str]
     status: Optional[str]
@@ -68,6 +95,8 @@ class EventStream:
     step_updates: Tuple[StepUpdate, ...]
     error: Optional[str] = None
     structured_output: Optional[Dict[str, Any]] = None
+    denied_actions: Tuple[Dict[str, Any], ...] = ()
+    command: Optional[Dict[str, Any]] = None
 
     def parsed_response(self):
         """**Tolerant parse** of `response` as JSON. Returns the parsed
@@ -93,8 +122,13 @@ def parse_event_stream(text):
     `--output-format stream-json` — into an `EventStream` record.
 
     Each non-blank line is one JSON event object with an `"event"` key of
-    `"init"`, `"step_update"`, or `"result"`. Unrecognized event kinds are
-    ignored rather than rejected, so a future `agy` adding a new event kind
+    `"init"`, `"step_update"`, `"result"`, or `"command_result"` (the
+    read-only slash-command answer emitted before the terminal **result
+    event** — see `tests/fixtures/command_result/PROVENANCE.md`; a stream
+    carrying only a `command_result` line then a `result` line, with no
+    `init` or `step_update` at all, is a real, valid shape, not a truncated
+    one). Every other event kind is genuinely unrecognized and is ignored
+    rather than rejected, so a future `agy` adding a new event kind
     degrades gracefully instead of breaking every caller.
     """
     conversation_id = None
@@ -103,6 +137,8 @@ def parse_event_stream(text):
     usage = None
     error = None
     structured_output = None
+    denied_actions = ()
+    command = None
     step_updates = []
 
     for line in text.splitlines():
@@ -142,6 +178,16 @@ def parse_event_stream(text):
             usage = payload.get("usage")
             error = payload.get("error")
             structured_output = payload.get("structured_output")
+            denied_actions = tuple(payload.get("denied_actions") or ())
+            # The terminal result event carries its own `command` key on a
+            # read-only slash-command run too (see
+            # tests/fixtures/command_result/PROVENANCE.md) -- only overwrite
+            # the dedicated command_result event's value (below) when this
+            # line actually has one, so a stream where only ONE of the two
+            # carries it still ends up with the value either way.
+            command = payload.get("command", command)
+        elif kind == "command_result":
+            command = event.get("command", command)
 
     return EventStream(
         conversation_id=conversation_id,
@@ -151,6 +197,8 @@ def parse_event_stream(text):
         step_updates=tuple(step_updates),
         error=error,
         structured_output=structured_output,
+        denied_actions=denied_actions,
+        command=command,
     )
 
 

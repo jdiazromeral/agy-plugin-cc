@@ -1069,6 +1069,128 @@ class RealErrorResultEventTest(unittest.TestCase):
         self.assertNotIn('"event"', message)
 
 
+# --- the **denied_actions** capture ---
+#
+# agy's own default agent (no `--agent` flag), `--sandbox` without
+# `--dangerously-skip-permissions` -- this mission's one paid `agy` run. NOT
+# taken through `/agy:review`'s or `/agy:adversarial-review`'s own command
+# vector, which cannot produce a denied_actions entry today (both vendored
+# review agents declare `tools: []` -- modernize-127 M4). See
+# tests/fixtures/denied_actions/PROVENANCE.md for the full writeup this
+# caveat is central to.
+
+_DENIED_ACTIONS_PATH = (
+    REPO_ROOT / "tests" / "fixtures" / "denied_actions" / "2026-09-20-run1.ndjson"
+)
+_DENIED_ACTIONS_CONVERSATION = "3a3ca41e-a938-4a2d-a6bc-59912e50bdcc"
+
+
+def _denied_actions_events():
+    return [
+        json.loads(line) for line in _read(_DENIED_ACTIONS_PATH).splitlines() if line.strip()
+    ]
+
+
+class RealDeniedActionsEventStreamTest(unittest.TestCase):
+    """The real captured `denied_actions` bytes, held against the shipped
+    parser -- proving the field name and shape by name, not by inference."""
+
+    def test_result_event_carries_a_denied_actions_key(self):
+        result = _denied_actions_events()[-1]["result"]
+        self.assertIn("denied_actions", result)
+        self.assertEqual(
+            [{"action": "write_file", "display_name": "WriteToFile"}],
+            result["denied_actions"],
+        )
+
+    def test_status_reads_success_despite_the_denial(self):
+        # Matches the changelog's "denials are not fatal" fix: a denied
+        # action is the normal shape of a DEGRADED review, not an error.
+        result = _denied_actions_events()[-1]["result"]
+        self.assertEqual("SUCCESS", result["status"])
+
+    def test_parses_with_the_shipped_parser(self):
+        stream = parse_event_stream(_read(_DENIED_ACTIONS_PATH))
+        self.assertEqual(_DENIED_ACTIONS_CONVERSATION, stream.conversation_id)
+        self.assertEqual("SUCCESS", stream.status)
+        self.assertEqual("", stream.response)
+        self.assertEqual(
+            ({"action": "write_file", "display_name": "WriteToFile"},),
+            stream.denied_actions,
+        )
+
+    def test_render_result_shows_the_degraded_notice_for_a_stored_review_job(self):
+        """The real shipped harvest path (`companion.result._render_result`),
+        run directly over these real bytes, for a job stored as `kind:
+        "review"`. `response` is the empty string in this real capture, so
+        harvesting falls back to the raw `output_file` text -- the degraded
+        notice must still render ahead of that fallback (contract: "a
+        review must never lose the notice just because it also failed to
+        parse")."""
+        job = {
+            "id": "job-denied-actions",
+            "kind": "review",
+            "output_file": str(_DENIED_ACTIONS_PATH),
+        }
+        message = _render_result(job)
+        self.assertIn("DEGRADED", message)
+        self.assertIn("WriteToFile", message)
+
+
+# --- the **command_result** capture ---
+#
+# A read-only slash-command probe (`/model`), captured for free (no agy
+# quota spent -- AGENTS.md's settled findings on free probes). See
+# tests/fixtures/command_result/PROVENANCE.md.
+
+_COMMAND_RESULT_PATH = (
+    REPO_ROOT / "tests" / "fixtures" / "command_result" / "2026-09-20-run1.ndjson"
+)
+
+_EXPECTED_COMMAND_PAYLOAD = {
+    "name": "model",
+    "data": {
+        "id": "gemini-3.8-flash-medium",
+        "label": "Gemini 3.8 Flash (Medium)",
+        "effort": "medium",
+        "is_default": False,
+    },
+}
+
+
+def _command_result_events():
+    return [
+        json.loads(line) for line in _read(_COMMAND_RESULT_PATH).splitlines() if line.strip()
+    ]
+
+
+class RealCommandResultEventStreamTest(unittest.TestCase):
+    """The real captured `command_result` bytes, held against the shipped
+    parser -- proving the field name and shape by name, not by inference."""
+
+    def test_event_kind_sequence_has_no_init_or_step_update(self):
+        # A read-only slash-command probe never starts a conversation, so
+        # this real capture has no init event and no step updates at all.
+        events = _command_result_events()
+        kinds = [event.get("event") for event in events]
+        self.assertEqual(["command_result", "result"], kinds)
+
+    def test_dedicated_command_result_event_key_set_and_values(self):
+        event = _command_result_events()[0]
+        self.assertEqual({"event", "command"}, set(event))
+        self.assertEqual(_EXPECTED_COMMAND_PAYLOAD, event["command"])
+
+    def test_result_event_also_carries_the_same_command_payload(self):
+        result = _command_result_events()[-1]["result"]
+        self.assertIn("command", result)
+        self.assertEqual(_EXPECTED_COMMAND_PAYLOAD, result["command"])
+
+    def test_parses_with_the_shipped_parser(self):
+        stream = parse_event_stream(_read(_COMMAND_RESULT_PATH))
+        self.assertEqual("SUCCESS", stream.status)
+        self.assertEqual(_EXPECTED_COMMAND_PAYLOAD, stream.command)
+
+
 class FixtureHygieneTest(unittest.TestCase):
     """These fixtures are raw agy output committed to a public repo. agy logs
     the authenticated account on every run (`server_oauth.go:193]`), so a

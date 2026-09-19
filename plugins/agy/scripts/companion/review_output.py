@@ -32,6 +32,22 @@ _FENCE_RE = re.compile(r"^```[a-zA-Z0-9]*\s*$", re.MULTILINE)
 
 _PRIORITY_LABELS = {0: "P0", 1: "P1", 2: "P2", 3: "P3"}
 
+# The rendered notice for the **degraded** case: `agy` denied one or more
+# tool actions during the run (glossary: **denied action**). Mirrors
+# `companion.status.MISSING_SESSION_NOTICE` / `render_status_table`'s
+# `session_unknown` pattern (M3b) -- "the degraded case must be visible in
+# the rendered output, not merely representable in the data model" applied
+# a second time in this codebase. Rendered ahead of the review body
+# (findings table OR the raw tolerant-parse fallback text) by
+# `render_review` below, never only in `--json`'s `denied_actions` key.
+DEGRADED_REVIEW_NOTICE_TEMPLATE = (
+    "note: this review is DEGRADED — agy denied {count} tool action(s) "
+    "during the run, so the verdict below may be based on incomplete "
+    "information: {actions}. `status` still reported the run as SUCCESS; "
+    "a denied action is not an execution error (see AGENTS.md's "
+    "modernize-127 findings)."
+)
+
 
 def tolerant_parse(text):
     """**Tolerant parse** `text` (agy-review's raw stdout) into a structured
@@ -125,35 +141,72 @@ def format_priority(priority):
     return _PRIORITY_LABELS.get(priority, "P?")
 
 
-def render_review(parsed):
+def render_review(parsed, denied_actions=()):
     """Render a `tolerant_parse` result as a **finding** table with P0-P3
     priorities and the overall correctness **verdict**. When parsing failed
     (`parsed["ok"]` is False), returns the raw text verbatim — per
     AGENTS.md's "a review that renders ugly beats a review that vanishes" —
-    rather than erroring or dropping the review."""
+    rather than erroring or dropping the review.
+
+    `denied_actions` (default empty — every pre-existing caller is
+    unaffected) is the run's parsed **result event** `denied_actions`
+    collection (glossary: **denied action**). When non-empty, a
+    **degraded** notice (`DEGRADED_REVIEW_NOTICE_TEMPLATE`) is rendered
+    ahead of the review body — findings table OR raw fallback text alike,
+    since a review must never lose the notice just because it also failed
+    to parse."""
     if not parsed["ok"]:
-        return parsed["raw_text"]
-
-    lines = []
-    findings = parsed["findings"]
-    if not findings:
-        lines.append("No findings.")
+        body = parsed["raw_text"]
     else:
-        lines.append("| Priority | Finding | Location | Confidence |")
-        lines.append("|---|---|---|---|")
-        for finding in findings:
-            priority = format_priority(finding.get("priority"))
-            title = _escape_cell(finding.get("title", ""))
-            location = _escape_cell(_format_location(finding.get("code_location")))
-            confidence = finding.get("confidence_score", "")
-            lines.append(
-                "| {} | {} | {} | {} |".format(priority, title, location, confidence)
-            )
+        lines = []
+        findings = parsed["findings"]
+        if not findings:
+            lines.append("No findings.")
+        else:
+            lines.append("| Priority | Finding | Location | Confidence |")
+            lines.append("|---|---|---|---|")
+            for finding in findings:
+                priority = format_priority(finding.get("priority"))
+                title = _escape_cell(finding.get("title", ""))
+                location = _escape_cell(_format_location(finding.get("code_location")))
+                confidence = finding.get("confidence_score", "")
+                lines.append(
+                    "| {} | {} | {} | {} |".format(priority, title, location, confidence)
+                )
 
-    lines.append("")
-    lines.append("Verdict: {}".format(parsed["overall_correctness"]))
-    lines.append(parsed["overall_explanation"])
-    return "\n".join(lines)
+        lines.append("")
+        lines.append("Verdict: {}".format(parsed["overall_correctness"]))
+        lines.append(parsed["overall_explanation"])
+        body = "\n".join(lines)
+
+    if not denied_actions:
+        return body
+    notice = DEGRADED_REVIEW_NOTICE_TEMPLATE.format(
+        count=len(denied_actions), actions=_format_denied_actions(denied_actions)
+    )
+    return "{}\n\n{}".format(notice, body)
+
+
+def _format_denied_actions(denied_actions):
+    """Compact display text for `denied_actions` entries shaped like the
+    real capture's (`{"action": "write_file", "display_name":
+    "WriteToFile"}}` — see `tests/fixtures/denied_actions/PROVENANCE.md`):
+    `"WriteToFile (write_file)"`, comma-joined. Falls back to whatever
+    string representation is available for a non-dict or partial entry
+    rather than erroring — the notice must render even from a shape this
+    module has not seen."""
+    parts = []
+    for entry in denied_actions:
+        if isinstance(entry, dict):
+            action = entry.get("action")
+            display_name = entry.get("display_name")
+            if display_name and action and display_name != action:
+                parts.append("{} ({})".format(display_name, action))
+            else:
+                parts.append(display_name or action or "unknown action")
+        else:
+            parts.append(str(entry))
+    return ", ".join(parts)
 
 
 def _format_location(code_location):
