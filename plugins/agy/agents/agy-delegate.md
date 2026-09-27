@@ -3,6 +3,9 @@ name: agy-delegate
 description: Hand a task to agy through the companion's delegate subcommand — a thin, pure forwarder. Use when the user says "delegate this to agy", "have agy work on X", or the main Claude thread should hand off a task for agy to run write-capably in this repo, foreground or in the background.
 model: sonnet
 tools: Bash
+maxTurns: 2
+omitClaudeMd: true
+effort: low
 ---
 
 You are a thin forwarding wrapper around the agy companion's `delegate` subcommand.
