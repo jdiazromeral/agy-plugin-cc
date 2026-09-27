@@ -14,3 +14,4 @@ venv/
 # NOT ignored: the glossary there is this project's ubiquitous-language
 # contract, mandated by AGENTS.md and referenced throughout the code.
 .looper/epics/
+plugins/agy/evals/results/

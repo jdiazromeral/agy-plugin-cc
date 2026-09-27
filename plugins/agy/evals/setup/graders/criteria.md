@@ -1,6 +1,6 @@
 ---
-type: llm
-weight: 1
+type: regex
+name: setup_output
+pattern: "agy:.*installed"
+flags: i
 ---
-
-The agent must invoke the /agy:setup command or execute the companion setup script. The response should display agy installation status, authentication state, and capability report.

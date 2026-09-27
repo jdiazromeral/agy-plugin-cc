@@ -1,6 +1,6 @@
 ---
-type: llm
-weight: 1
+type: regex
+name: dry_run_output
+pattern: "(dry run|review prompt|agy-review)"
+flags: i
 ---
-
-The agent must invoke /agy:review --dry-run or the companion review command with --dry-run. The output should preview the prompt without errors.

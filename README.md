@@ -251,13 +251,14 @@ would make a still-running, still-quota-spending job invisible.
 
 ## Testing
 
-Three tiers, because they catch genuinely different things.
+Four tiers, because they catch genuinely different things.
 
 | Command | Cost | Catches |
 |---|---|---|
 | `make check` | free, hermetic, ~11s | ordinary regressions. Runs in CI on every push. Drives a fake `agy`; never touches the real binary or the network |
 | `make check-live-free` | free, needs an authenticated `agy` | drift in the two traces that resolve *before* any model call — the agent **bind** and the resume **silent fallback** |
 | `make check-live` | spends a few trivial live runs | everything above, plus the full background **job** lifecycle driven through the shipped commands: launch → `status` → `result`, and a `cancel` that asserts the process is genuinely **dead** |
+| `make check-evals` | spends Claude tokens, no agy quota | end-to-end Claude Code harness evaluation of plugin skills and commands against deterministic regex graders |
 
 **Run `make check-live` after every `agy` upgrade.** This is not boilerplate
 caution. The offline suite drives `tests/fake_agy.py`, and a fake is only as
