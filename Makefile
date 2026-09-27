@@ -1,4 +1,4 @@
-.PHONY: check test lint check-live validate-plugin
+.PHONY: check test lint check-live validate-plugin check-evals
 
 check: test lint
 
@@ -36,3 +36,9 @@ check-live:
 # enough to run on any agy upgrade without thinking about cost.
 check-live-free:
 	python3 tools/live_delegate_capture.py --free-only
+
+# Claude Code plugin evals with deterministic graders. Local only, spends
+# Claude tokens, no agy quota. Never a prerequisite of `check`.
+check-evals:
+	claude plugin eval plugins/agy --runs 1 --threshold 0.9 --allow-tools Bash --trust-plugin --ablation none --no-publish
+
