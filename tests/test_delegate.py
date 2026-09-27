@@ -18,6 +18,7 @@ background launch:
     end-to-end path. The real agy is never invoked.
 """
 import os
+import re
 import shutil
 import stat
 import subprocess
@@ -656,6 +657,19 @@ class DelegateBackgroundSubprocessTest(unittest.TestCase):
             self.assertIsNotNone(job.get("output_file"))
             output_text = _wait_for_marker(Path(job["output_file"]), "task complete.")
             self.assertIn("agy delegate output: task complete.", output_text)
+
+
+class AgyDelegateAgentManifestTest(unittest.TestCase):
+    def test_frontmatter_declares_max_turns_omit_claude_md_and_effort(self):
+        agent_path = REPO_ROOT / "plugins" / "agy" / "agents" / "agy-delegate.md"
+        self.assertTrue(agent_path.is_file(), f"{agent_path} does not exist")
+        text = agent_path.read_text(encoding="utf-8")
+        match = re.match(r"\A---\n(.*?)\n---", text, re.DOTALL)
+        self.assertIsNotNone(match, "agy-delegate.md must open with --- delimited frontmatter")
+        fm = match.group(1)
+        self.assertRegex(fm, r"(?m)^maxTurns:\s*\d+\s*$")
+        self.assertRegex(fm, r"(?m)^omitClaudeMd:\s*true\s*$")
+        self.assertRegex(fm, r"(?m)^effort:\s*low\s*$")
 
 
 if __name__ == "__main__":
