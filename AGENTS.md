@@ -230,7 +230,12 @@ Verified empirically against `agy` 1.1.6 on 2026-07-24. Full evidence lives in
   a `--print-timeout` computed to expire ~10s before the subprocess timeout
   (`companion.launch._print_timeout_arg`), and every background launch passes
   an explicit `"24h"` (`companion.launch._BACKGROUND_PRINT_TIMEOUT_ARG`) so
-  the plugin's "no ceiling" promise is actually true.
+  the plugin's "no ceiling" promise is actually true. Note: in agy 1.2.6+,
+  agy's default headless print-mode timeout changed from 5m0s to 0s
+  (unlimited); `companion.launch._BACKGROUND_PRINT_TIMEOUT_ARG` retains an
+  explicit 24h bound as a reliable safety boundary against runaway background
+  processes while satisfying the contract that ordinary long-running tasks
+  are never cut off.
 - **`stdin=subprocess.DEVNULL` is required for all foreground `subprocess.run` calls.**
   When running in automated, piped, or subagent test environments where `stdin`
   is not a TTY, `agy agents`, `agy models`, and print mode probes block
@@ -400,6 +405,22 @@ Verified empirically against `agy` 1.1.6 on 2026-07-24. Full evidence lives in
   before the dedicated line still recovers it). No consumer renders
   `command` anywhere yet — out of this mission's scope — this is
   parser-layer recognition only.
+- **Delegate execution modes verdict (modernize-127 M6).** Headless print mode
+  (`agy -p`) remains the only reliable execution path for background delegate launches.
+  Stream-JSON mode (`agy -p --output-format stream-json`) offers richer event
+  telemetry, but pseudo-TTY or interactive modes are unworkable for headless background
+  delegation. Detailed analysis and trade-offs are preserved in
+  `docs/delegate-mode-verdict.md`.
+- **Tighter, cheaper delegate subagent (modernize-127 M7).**
+  `plugins/agy/agents/agy-delegate.md` specifies `maxTurns: 2`, `omitClaudeMd: true`,
+  and `effort: low`. Omitting project context instructions (CLAUDE.md) saves
+  unnecessary context expansion for pure CLI task handoff, ensuring deterministic
+  and minimal token burn.
+- **Testing tiers and eval mechanics (modernize-127 M8).** The test suite spans
+  four tiers (`make check`, `make check-live-free`, `make check-evals`, `make check-live`).
+  `evals/` test cases use deterministic regex graders with `target: trace` and JS RegExp
+  `flags: i` (rather than non-deterministic LLM graders or Python-specific regex flags like
+  `(?i)` which fail in Claude Code's eval runner).
 
 ## Never
 
@@ -533,10 +554,20 @@ Verified empirically against `agy` 1.1.6 on 2026-07-24. Full evidence lives in
 
 ## Checks
 
-`make check` must pass before any mission is DONE. It runs the Python test
-suite against a fake `agy` binary injected on `PATH`, plus a lint pass.
-Declared as an entry below so the DONE gate enforces it mechanically
-rather than relying on intake routing it by hand:
+Testing spans four distinct tiers, because each catches genuinely different classes of defect:
+
+1. `make check`: offline, fast (~11s), hermetic Python test suite against a fake `agy`
+   binary on `PATH` plus formatting/linting. Runs in CI on every push.
+2. `make check-live-free`: zero-quota live check against the real local `agy` binary,
+   probing the traces that resolve before any model call (agent bind and silent fallback).
+3. `make check-evals`: Claude Code harness evaluation of plugin skills and commands
+   using deterministic regex graders against fake `agy`.
+4. `make check-live`: end-to-end integration against real `agy` across the full lifecycle
+   (review findings schema, delegate fresh/resume/background, status, result, cancel
+   process kill). Spends paid quota; run on upgrades and releases.
+
+`make check` must pass before any mission is DONE. Declared as an entry below so the DONE
+gate enforces it mechanically rather than relying on intake routing it by hand:
 
 - `make check`
 
@@ -557,3 +588,4 @@ Run the suite as `make check`, or `python3 -m unittest tests.<module>` for a
 single file — matching the Makefile's own `test` target. Do NOT invoke
 `pytest`; it is shadowed by a shell hook in this environment and fails to
 spawn. Two missions lost time rediscovering this independently.
+

@@ -26,10 +26,13 @@ Where a term has a tempting synonym, the wrong word is named explicitly.
 - **review target** — the resolved thing being reviewed: working tree, staged
   changes, or a branch diff against a base ref. Resolving it is **target
   selection**.
-- **manifest** — the list of the repository's tracked files (`git ls-files`)
-  spliced into a review prompt so the bound agent, which has no file-access
-  tools, can tell a genuinely absent file from one merely outside the diff.
-  Not "file list", not "index" — "index" means git's staging area.
+- **review manifest** (or **file manifest**) — the list of the repository's
+  tracked files (`git ls-files`) spliced into a review prompt so the bound agent,
+  which has no file-access tools, can tell a genuinely absent file from one merely
+  outside the diff. Not "file list", not "index" — "index" means git's staging area.
+- **plugin manifest** / **marketplace manifest** — the JSON manifests
+  (`.claude-plugin/marketplace.json`, `plugins/agy/.claude-plugin/plugin.json`)
+  defining plugin metadata, schema, and capabilities for Claude Code.
 - **finding** — one issue reported by a review, carrying a title, body,
   priority (P0-P3), confidence score, and code location. Not "issue", not
   "comment".

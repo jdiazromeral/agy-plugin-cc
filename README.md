@@ -3,18 +3,20 @@
 Use the **Antigravity CLI (`agy`)** from inside Claude Code — for code review, or
 to delegate tasks and track them in the background.
 
-> **Status: pre-alpha (v0.3.0).** All seven commands below are implemented and covered
-> by an offline test suite (410 tests against a fake `agy` on `PATH`, never
+> **Status: pre-alpha (v0.4.0).** All seven commands below are implemented and covered
+> by an offline test suite (479 tests against a fake `agy` on `PATH`, never
 > the real binary — `make check` prints the authoritative count).
 >
 > **All seven commands have been run end to end against a real, authenticated
-> `agy`, re-verified on 1.2.6** (2026-09-19, via `make check-live` / `agy_companion.py setup`):
+> `agy`, re-verified on 1.2.12** (2026-09-27, via `make check-live` / `agy_companion.py setup`):
 > `/agy:review` and `/agy:adversarial-review` producing schema-conforming
-> findings; `/agy:delegate` fresh, `--resume`, and `--background`;
+> findings with hermetic agents (`excludeDefaultComponents: true`);
+> `/agy:delegate` fresh, `--resume`, and `--background`;
 > `/agy:status` against a job both mid-flight and finished; `/agy:result`
 > harvesting a real stored result; and `/agy:cancel` killing a real
 > mid-stream process, verified dead by PID. Includes Claude Code session
-> lifecycle hooks (`SessionStart`/`SessionEnd`) and native `evals/` test cases.
+> lifecycle hooks (`SessionStart`/`SessionEnd`), deterministic `evals/` test cases (`make check-evals`),
+> and event-stream fidelity for `denied_actions` and `command_result`.
 > The evidence is committed, not asserted — see `docs/review-schema-verdict.md`
 > and the captures under `tests/fixtures/`, each with its own PROVENANCE note.
 >
@@ -27,7 +29,7 @@ This is a port of [`openai/codex-plugin-cc`](https://github.com/openai/codex-plu
 ## Installation
 
 1. Install and authenticate the [Antigravity CLI](https://antigravity.google/docs/cli/)
-   (`agy`) — version **1.1.11 or newer**. `/agy:setup` (below) verifies this for you.
+   (`agy`) — version **1.2.7 or newer** (tested on 1.2.12). `/agy:setup` (below) verifies this for you.
 2. In Claude Code, add this repository as a plugin marketplace and install the
    plugin from it:
    ```
@@ -56,7 +58,7 @@ defects and recorded here so they aren't re-derived:
   command execution path for a directory marketplace like this one.
 - **The cache is real and IS version-keyed**, off
   `.claude-plugin/marketplace.json`'s `metadata.version` /
-  `plugins[].version` (currently `0.3.0`). `claude plugin marketplace
+  `plugins[].version` (currently `0.4.0`). `claude plugin marketplace
   update` alone will **not** refresh a stale cache while that version
   string stays the same — only `/plugin uninstall` followed by `/plugin
   install` does. This is a note about install/update mechanics for anyone
@@ -235,18 +237,11 @@ is hidden from `/agy:status` from then on, so claiming an unverified kill
 would make a still-running, still-quota-spending job invisible.
 
 ## Requirements
-
-- Antigravity CLI (`agy`) **1.1.11+**, installed and authenticated. Binaries
-  older than 1.1.10 accept `--model` / `--effort` on a headless `-p` run and
-  then ignore them, so `/agy:delegate` would silently use a different model
-  than you asked for. 1.1.11 closes the remaining gap: it added a free,
-  zero-quota probe (a read-only slash command answered without starting an
-  agent turn) that reflects back the model/effort a run actually resolved
-  to, so this plugin can **prove** `--model`/`--effort` took effect instead
-  of only assuming it from the version string. This repo supports one agy
-  binary at a time with no dual code path for an older one, so the floor
-  moves to wherever the stronger guarantee is available rather than staying
-  at the minimum that merely fixed the bug.
+ 
+- Antigravity CLI (`agy`) **1.2.7+** (tested and re-verified on 1.2.12), installed and authenticated.
+  1.2.7 retired `find_by_name`, `grep_search`, and `list_dir` from the default tool baseline;
+  vendored review agents explicitly declare `excludeDefaultComponents: true` and hermetic `tools: []`
+  so reviews never inherit ambient workspace skills, rules, or subagents.
 - Python 3.9+ (standard library only — no dependencies, no install step)
 
 ## Testing

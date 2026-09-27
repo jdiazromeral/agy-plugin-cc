@@ -48,14 +48,15 @@ WHY A **background launch** GETS A DIFFERENT, LARGE VALUE
 A **background launch** is documented throughout this plugin as having NO
 timeout ceiling by design (see the `--timeout cannot be combined with
 --background` validation in `delegate.py`, `review.py`, and
-`adversarial_review.py`). But agy's own `--print-timeout` defaults to
-`5m0s` regardless of what the plugin does — so leaving it unset on a
-background launch would silently reimpose a 5-minute ceiling on a job the
-plugin explicitly promises has none. `_BACKGROUND_PRINT_TIMEOUT_ARG` closes
-that gap: an explicit, generous, VERIFIED-to-parse value (`"24h"`), not
-agy's silent 5-minute default. This is not a claim that agy has an
-"unbounded" concept to opt into — it does not — so a large explicit bound is
-the honest stand-in for "no ceiling", not a pretense of infinity.
+`adversarial_review.py`).
+
+Historically (pre-1.2.6), agy's own headless `--print-timeout` defaulted to
+`5m0s`, so leaving it unset on a background launch would silently reimpose
+a 5-minute ceiling. agy 1.2.6 changed the headless print-mode default to 0s
+(unlimited). `_BACKGROUND_PRINT_TIMEOUT_ARG` retains an explicit, generous,
+VERIFIED-to-parse value (`"24h"`), acting as a reliable boundary against
+runaway background processes while satisfying the contract that ordinary
+long-running tasks are never cut off.
 """
 import argparse
 import json
