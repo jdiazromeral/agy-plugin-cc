@@ -4,11 +4,11 @@ Use the **Antigravity CLI (`agy`)** from inside Claude Code — for code review,
 to delegate tasks and track them in the background.
 
 > **Status: pre-alpha (v0.4.0).** All seven commands below are implemented and covered
-> by an offline test suite (479 tests against a fake `agy` on `PATH`, never
+> by an offline test suite (480 tests against a fake `agy` on `PATH`, never
 > the real binary — `make check` prints the authoritative count).
 >
 > **All seven commands have been run end to end against a real, authenticated
-> `agy`, re-verified on 1.2.12** (2026-09-27, via `make check-live` / `agy_companion.py setup`):
+> `agy`, re-verified on 1.2.16** (2026-10-03, via `make check-live` / `agy_companion.py setup`):
 > `/agy:review` and `/agy:adversarial-review` producing schema-conforming
 > findings with hermetic agents (`excludeDefaultComponents: true`);
 > `/agy:delegate` fresh, `--resume`, and `--background`;
@@ -29,7 +29,7 @@ This is a port of [`openai/codex-plugin-cc`](https://github.com/openai/codex-plu
 ## Installation
 
 1. Install and authenticate the [Antigravity CLI](https://antigravity.google/docs/cli/)
-   (`agy`) — version **1.2.7 or newer** (tested on 1.2.12). `/agy:setup` (below) verifies this for you.
+   (`agy`) — version **1.2.7 or newer** (tested on 1.2.16). `/agy:setup` (below) verifies this for you.
 2. In Claude Code, add this repository as a plugin marketplace and install the
    plugin from it:
    ```
@@ -238,7 +238,7 @@ would make a still-running, still-quota-spending job invisible.
 
 ## Requirements
  
-- Antigravity CLI (`agy`) **1.2.7+** (tested and re-verified on 1.2.12), installed and authenticated.
+- Antigravity CLI (`agy`) **1.2.7+** (tested and re-verified on 1.2.16), installed and authenticated.
   1.2.7 retired `find_by_name`, `grep_search`, and `list_dir` from the default tool baseline;
   vendored review agents explicitly declare `excludeDefaultComponents: true` and hermetic `tools: []`
   so reviews never inherit ambient workspace skills, rules, or subagents.

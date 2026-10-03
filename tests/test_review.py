@@ -15,7 +15,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest import mock
 
@@ -160,6 +160,29 @@ class RunLiveReviewDeniedActionsTest(unittest.TestCase):
         self.assertEqual(0, code)
         payload = json.loads(out.getvalue())
         self.assertEqual([], payload["denied_actions"])
+
+
+class MidStreamCrashReviewTest(unittest.TestCase):
+    """Headless runs that stream partial output and crash exit with code 3
+    and emit AGY_ERROR on stderr (agy 1.2.10+). review._run_live_review
+    must fail closed (exit code 1) and format the AGY_ERROR, rather than
+    passing partial output to tolerant_parse and exiting 0."""
+
+    def test_mid_stream_crash_with_exit_code_3_fails_closed(self):
+        def mock_crash(*args, **kwargs):
+            stderr = b'AGY_ERROR: {"code": 500, "status": "INTERNAL", "message": "model stream terminated unexpectedly"}\n'
+            partial_stdout = b'{"event": "init", "conversation_id": "x"}\n'
+            return "bound", "Created conversation x", 3, partial_stdout, stderr
+
+        with mock.patch("companion.review._launch_agy", side_effect=mock_crash), \
+                redirect_stderr(io.StringIO()) as err:
+            code = review._run_live_review("/tmp/repo", "prompt", False)
+
+        self.assertEqual(1, code)
+        err_val = err.getvalue()
+        self.assertIn("exited 3", err_val)
+        self.assertIn("agy error [500]: model stream terminated unexpectedly", err_val)
+        self.assertNotIn("with no output", err_val)
 
 
 class UntrackedFileOnlyTest(unittest.TestCase):

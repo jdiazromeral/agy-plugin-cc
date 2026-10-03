@@ -224,12 +224,13 @@ def _run_live_review(repo_root, prompt, as_json, agent_name=_AGY_AGENT_NAME, tim
         return 1
 
     stdout_text = stdout_bytes.decode("utf-8", errors="replace")
-    if returncode != 0 and not stdout_text.strip():
+    if returncode != 0:
         stderr_text = stderr_bytes.decode("utf-8", errors="replace").strip()
         formatted_err = format_agy_error(stderr_text) if stderr_text else "(no stderr)"
+        suffix = " with no output" if not stdout_text.strip() else ""
         print(
-            "error: agy bound the \"{}\" agent but exited {} with no output: {}".format(
-                agent_name, returncode, formatted_err
+            "error: agy bound the \"{}\" agent but exited {}{}: {}".format(
+                agent_name, returncode, suffix, formatted_err
             ),
             file=sys.stderr,
         )

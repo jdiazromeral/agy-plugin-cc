@@ -421,6 +421,13 @@ Verified empirically against `agy` 1.1.6 on 2026-07-24. Full evidence lives in
   `evals/` test cases use deterministic regex graders with `target: trace` and JS RegExp
   `flags: i` (rather than non-deterministic LLM graders or Python-specific regex flags like
   `(?i)` which fail in Claude Code's eval runner).
+- **Agy 1.2.16 re-verification and exit code 3 failure handling (modernize-1216).**
+  Re-verified live on 1.2.16 against all three live probe suites (`live_delegate_capture`,
+  `live_review_capture`, `live_lifecycle_capture`). Headless (`-p`) runs that stream partial
+  output and terminate on an error exit with code 3 and write `AGY_ERROR` on stderr
+  (agy 1.2.10+). `companion/review.py` was updated to fail closed (exit code 1) on any
+  non-zero `returncode` regardless of whether partial stdout was produced, formatting the
+  `AGY_ERROR` diagnostic rather than falling through to parse partial tokens.
 
 ## Never
 

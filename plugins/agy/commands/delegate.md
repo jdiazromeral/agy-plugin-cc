@@ -1,6 +1,6 @@
 ---
 description: Delegate a task to agy through a thin forwarding subagent (foreground or --background, fresh or --resume)
-argument-hint: '[--repo <path>] [--background] [--resume|--fresh] [--model <model>] [--effort <effort>] [--timeout <seconds>] <task for agy>'
+argument-hint: '[--repo <path>] [--background] [--resume|--fresh] [--model <model>] [--effort <low|medium|high|xhigh|max>] [--timeout <seconds>] <task for agy>'
 allowed-tools: Bash(python3:*), Agent
 disable-model-invocation: true
 ---
@@ -44,8 +44,8 @@ Operating rules:
   path first. Never guess a repo the user did not name: this run writes
   without confirmation. Omitted, the companion uses the current working
   directory, exactly as before.
-- `--model`, `--effort`, and `--timeout` are optional passthroughs; forward
-  them only when the user supplies them. `--timeout <seconds>` raises the
+- `--model`, `--effort` (`low|medium|high|xhigh|max`), and `--timeout` are optional
+  passthroughs; forward them only when the user supplies them. `--timeout <seconds>` raises the
   companion's 300s foreground subprocess timeout ceiling for this one run;
   it is rejected together with `--background`, which has no ceiling.
 - delegate always runs agy's default agent — never `--agent agy-review`.
