@@ -180,6 +180,18 @@ class BindCheckTest(unittest.TestCase):
         self.assertEqual(state, "unknown")
         self.assertNotEqual(state, "bound")
 
+    def test_legacy_agent_fallback_is_not_bound(self):
+        line = 'I0730 10:28:14.594452 13766 printmode.go:123] Agent "agy-review" not found, falling back to default'
+        state, proof = _bind_check(line)
+        self.assertEqual(state, "not_bound")
+        self.assertIn('Agent "agy-review" not found, falling back to default', proof)
+
+    def test_modern_141_unknown_agent_is_not_bound(self):
+        line = 'E1025 21:52:16.488349 75924 printmode.go:94] Print mode: unknown agent "nonexistent-agent"'
+        state, proof = _bind_check(line)
+        self.assertEqual(state, "not_bound")
+        self.assertIn('Print mode: unknown agent "nonexistent-agent"', proof)
+
     def test_genuine_created_conversation_line_still_proves_bound(self):
         """The one positive trace that survives: a real `Created
         conversation <uuid>` line, from the real `--agent`-requesting fresh

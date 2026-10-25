@@ -112,6 +112,18 @@ def add_arguments(parser):
         "supplied.".format(_AGY_TIMEOUT_SECONDS),
     )
     parser.add_argument(
+        "--model",
+        default=None,
+        metavar="MODEL",
+        help="Passthrough --model to agy. Not forwarded unless supplied.",
+    )
+    parser.add_argument(
+        "--effort",
+        default=None,
+        metavar="EFFORT",
+        help="Passthrough --effort to agy. Not forwarded unless supplied.",
+    )
+    parser.add_argument(
         "focus",
         nargs="*",
         default=[],
@@ -167,8 +179,11 @@ def run(args):
 
     repo_root = ensure_git_repository(cwd)
     if args.background:
-        return _run_background_review(repo_root, prompt, agent_name=_AGY_AGENT_NAME)
+        return _run_background_review(
+            repo_root, prompt, agent_name=_AGY_AGENT_NAME, model=args.model, effort=args.effort
+        )
     timeout = args.timeout if args.timeout is not None else _AGY_TIMEOUT_SECONDS
     return _run_live_review(
-        repo_root, prompt, args.json, agent_name=_AGY_AGENT_NAME, timeout=timeout
+        repo_root, prompt, args.json, agent_name=_AGY_AGENT_NAME, timeout=timeout,
+        model=args.model, effort=args.effort,
     )

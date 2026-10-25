@@ -95,6 +95,12 @@ Verified empirically against `agy` 1.1.6 on 2026-07-24. Full evidence lives in
   moved across files (e.g. `server.go:934` in 1.1.6 to `server.go:1177` in 1.2.6)
   — which is precisely why none of these regexes may anchor on a file name or
   line number.
+- **agy 1.4.1+ hard-fails on unknown agents instead of falling back to default.**
+  In agy 1.1.x-1.3.x, an unresolvable `--agent` value logged `Agent "<name>" not found, falling back to default`
+  and completed with exit code 0. In agy 1.4.1+ (re-verified on 1.4.7), agy hard-fails with exit code 1,
+  prints `error: unknown agent "<name>"` to stderr, and logs `printmode.go:94] Print mode: unknown agent "<name>"`.
+  `FALLBACK_RE` in `companion.agy_log` matches both the legacy fallback and the modern unknown agent trace,
+  ensuring `_bind_check` correctly returns `not_bound` across all agy versions.
 - **Never validate a regex against `tests/fake_agy.py`.** The fake's log lines
   were written from memory and have hidden two shipped defects that way (an
   agent that could never bind, and a fallback guard matching only

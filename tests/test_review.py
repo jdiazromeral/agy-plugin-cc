@@ -23,6 +23,8 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 COMPANION = REPO_ROOT / "plugins" / "agy" / "scripts" / "agy_companion.py"
 sys.path.insert(0, str(REPO_ROOT / "plugins" / "agy" / "scripts"))
 
+from types import SimpleNamespace
+
 from companion import review  # noqa: E402
 
 # Fixed synthetic identity/dates so commits are reproducible and the
@@ -441,6 +443,67 @@ class PromptTextTest(unittest.TestCase):
         self.assertNotIn("PLACEHOLDER", payload["prompt"])
         self.assertIn("Output only the JSON", payload["prompt"])
         self.assertIn("Prompt that would be sent to agy", human_result.stdout)
+
+
+class ReviewModelAndEffortPassthroughTest(unittest.TestCase):
+    def test_command_vector_appends_model_and_effort_when_supplied(self):
+        cmd = review._agy_command(
+            "prompt text", "/tmp/agy.log", model="gemini-3.8-flash-high", effort="max"
+        )
+        self.assertIn("--model", cmd)
+        self.assertEqual(cmd[cmd.index("--model") + 1], "gemini-3.8-flash-high")
+        self.assertIn("--effort", cmd)
+        self.assertEqual(cmd[cmd.index("--effort") + 1], "max")
+
+    def test_command_vector_omits_model_and_effort_when_none(self):
+        cmd = review._agy_command("prompt text", "/tmp/agy.log")
+        self.assertNotIn("--model", cmd)
+        self.assertNotIn("--effort", cmd)
+
+    def test_foreground_review_forwards_model_and_effort(self):
+        with mock.patch("companion.review._launch_agy") as mock_launch, \
+                mock.patch("companion.review.ensure_git_repository", return_value="/tmp/fake"), \
+                mock.patch("companion.review.resolve_target", return_value={"label": "working tree", "mode": "working-tree"}), \
+                mock.patch("companion.review.target_size", return_value={"files": 1, "insertions": 1, "deletions": 0}), \
+                mock.patch("companion.review._diff_text", return_value="diff"), \
+                mock.patch("companion.review._tracked_files", return_value=["file.py"]):
+            mock_launch.return_value = (
+                "bound", "Created conversation abc", 0,
+                b'{"event":"result","result":{"status":"SUCCESS","response":"{}"}}\n', b""
+            )
+            args = SimpleNamespace(
+                repo=None, dry_run=False, scope="auto", base=None, json=False,
+                background=False, timeout=None, model="gemini-3.8-flash-high", effort="high",
+            )
+            exit_code = review.run(args)
+            self.assertEqual(exit_code, 0)
+
+        mock_launch.assert_called_once()
+        _, kwargs = mock_launch.call_args
+        self.assertEqual(kwargs.get("model"), "gemini-3.8-flash-high")
+        self.assertEqual(kwargs.get("effort"), "high")
+
+    def test_background_review_forwards_model_and_effort(self):
+        calls = []
+        def stub_spawn(cmd, cwd, stdout_path):
+            calls.append(cmd)
+            return mock.Mock(pid=12345)
+
+        with tempfile.TemporaryDirectory() as repo:
+            repo_root = Path(repo) / "my-repo"
+            repo_root.mkdir()
+            exit_code = review._run_background_review(
+                str(repo_root), "review this diff", spawn=stub_spawn,
+                model="custom-model", effort="low",
+            )
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(len(calls), 1)
+        cmd = calls[0]
+        self.assertIn("--model", cmd)
+        self.assertEqual(cmd[cmd.index("--model") + 1], "custom-model")
+        self.assertIn("--effort", cmd)
+        self.assertEqual(cmd[cmd.index("--effort") + 1], "low")
 
 
 if __name__ == "__main__":

@@ -8,7 +8,12 @@ regex staying identical everywhere it is checked.
 """
 import re
 
-FALLBACK_RE = re.compile(r'Agent "[^"]+" not found, falling back to default')
+# Supports both legacy agy 1.1.x-1.3.x ("Agent <name> not found, falling back to default")
+# and agy 1.4.1+ ("Print mode: unknown agent <name>").
+FALLBACK_RE = re.compile(
+    r'(?:Agent "[^"]+" not found, falling back to default|'
+    r'Print mode: unknown agent "[^"]+")'
+)
 CREATED_CONVERSATION_RE = re.compile(r"Created conversation ([0-9a-fA-F-]+)")
 # Never treat `printmode.go:` lines as a positive **bind** trace. Every
 # print-mode run emits them, agent-requesting or not — including `delegate`,

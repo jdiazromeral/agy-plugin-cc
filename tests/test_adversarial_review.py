@@ -19,6 +19,8 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
+from unittest import mock
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 COMPANION = REPO_ROOT / "plugins" / "agy" / "scripts" / "agy_companion.py"
@@ -354,6 +356,52 @@ class AdversarialAgentFileTest(unittest.TestCase):
         text = self._read().lower()
         for word in ("broker", "app-server", "remote control"):
             self.assertNotIn(word, text)
+
+
+class AdversarialReviewModelAndEffortPassthroughTest(unittest.TestCase):
+    def test_live_adversarial_review_forwards_model_and_effort(self):
+        with mock.patch("companion.adversarial_review._run_live_review") as mock_live, \
+                mock.patch("companion.adversarial_review.ensure_git_repository", return_value="/tmp/fake"), \
+                mock.patch("companion.adversarial_review.resolve_target", return_value={"label": "working tree", "mode": "working-tree"}), \
+                mock.patch("companion.adversarial_review.target_size", return_value={"files": 1, "insertions": 1, "deletions": 0}), \
+                mock.patch("companion.adversarial_review._diff_text", return_value="diff"), \
+                mock.patch("companion.adversarial_review._tracked_files", return_value=["file.py"]):
+            mock_live.return_value = 0
+            args = SimpleNamespace(
+                repo=None, dry_run=False, scope="auto", base=None, json=False,
+                background=False, timeout=None, model="gemini-3.8-flash-high", effort="high",
+                focus=[],
+            )
+            exit_code = adversarial_review.run(args)
+            self.assertEqual(exit_code, 0)
+
+        mock_live.assert_called_once()
+        _, kwargs = mock_live.call_args
+        self.assertEqual(kwargs.get("model"), "gemini-3.8-flash-high")
+        self.assertEqual(kwargs.get("effort"), "high")
+        self.assertEqual(kwargs.get("agent_name"), "agy-adversarial-review")
+
+    def test_background_adversarial_review_forwards_model_and_effort(self):
+        with mock.patch("companion.adversarial_review._run_background_review") as mock_bg, \
+                mock.patch("companion.adversarial_review.ensure_git_repository", return_value="/tmp/fake"), \
+                mock.patch("companion.adversarial_review.resolve_target", return_value={"label": "working tree", "mode": "working-tree"}), \
+                mock.patch("companion.adversarial_review.target_size", return_value={"files": 1, "insertions": 1, "deletions": 0}), \
+                mock.patch("companion.adversarial_review._diff_text", return_value="diff"), \
+                mock.patch("companion.adversarial_review._tracked_files", return_value=["file.py"]):
+            mock_bg.return_value = 0
+            args = SimpleNamespace(
+                repo=None, dry_run=False, scope="auto", base=None, json=False,
+                background=True, timeout=None, model="custom-adv-model", effort="low",
+                focus=["security"],
+            )
+            exit_code = adversarial_review.run(args)
+            self.assertEqual(exit_code, 0)
+
+        mock_bg.assert_called_once()
+        _, kwargs = mock_bg.call_args
+        self.assertEqual(kwargs.get("model"), "custom-adv-model")
+        self.assertEqual(kwargs.get("effort"), "low")
+        self.assertEqual(kwargs.get("agent_name"), "agy-adversarial-review")
 
 
 if __name__ == "__main__":

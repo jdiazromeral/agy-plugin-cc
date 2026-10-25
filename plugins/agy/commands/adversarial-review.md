@@ -1,6 +1,6 @@
 ---
 description: Run an adversarial agy review that argues against the change rather than validating it — steer it with free-text focus
-argument-hint: '[--repo <path>] [--dry-run] [--background] [--scope auto|working-tree|branch] [--base <ref>] [--json] [--timeout <seconds>] [focus ...]'
+argument-hint: '[--repo <path>] [--dry-run] [--background] [--scope auto|working-tree|branch] [--base <ref>] [--model <model>] [--effort <low|medium|high|xhigh|max>] [--json] [--timeout <seconds>] [focus ...]'
 allowed-tools: Bash(python3:*)
 ---
 
@@ -43,6 +43,9 @@ With `--background`, it launches `agy` detached (writing to a persistent log
 under this repo's state dir) and returns immediately, printing the job id
 instead of waiting for and rendering the review. Check progress later with
 `/agy:status`.
+
+`--model <model>` and `--effort <low|medium|high|xhigh|max>` are optional passthroughs;
+forward them to steer review model selection and reasoning depth.
 
 `--timeout <seconds>` raises the foreground subprocess timeout past its
 300s default for this one run. Rejected together with `--background`,

@@ -136,6 +136,18 @@ def add_arguments(parser):
         "with --background, which has no timeout ceiling by design. Not forwarded unless "
         "supplied.".format(_AGY_TIMEOUT_SECONDS),
     )
+    parser.add_argument(
+        "--model",
+        default=None,
+        metavar="MODEL",
+        help="Passthrough --model to agy. Not forwarded unless supplied.",
+    )
+    parser.add_argument(
+        "--effort",
+        default=None,
+        metavar="EFFORT",
+        help="Passthrough --effort to agy. Not forwarded unless supplied.",
+    )
 
 
 def run(args):
@@ -182,22 +194,27 @@ def run(args):
 
     repo_root = ensure_git_repository(cwd)
     if args.background:
-        return _run_background_review(repo_root, prompt)
+        return _run_background_review(repo_root, prompt, model=args.model, effort=args.effort)
     timeout = args.timeout if args.timeout is not None else _AGY_TIMEOUT_SECONDS
-    return _run_live_review(repo_root, prompt, args.json, timeout=timeout)
+    return _run_live_review(
+        repo_root, prompt, args.json, timeout=timeout, model=args.model, effort=args.effort
+    )
 
 
 # --- foreground live launch ------------------------------------------------
 
 
-def _run_live_review(repo_root, prompt, as_json, agent_name=_AGY_AGENT_NAME, timeout=_AGY_TIMEOUT_SECONDS):
+def _run_live_review(
+    repo_root, prompt, as_json, agent_name=_AGY_AGENT_NAME, timeout=_AGY_TIMEOUT_SECONDS,
+    model=None, effort=None,
+):
     """Launch `agy` once as a blocking foreground run, verify it **bound**
     `agent_name` (defaults to the `agy-review` agent; `/agy:adversarial-review`
     passes `agy-adversarial-review` instead), then render the **tolerant
     parse** of its output. Returns the process exit code."""
     try:
         bind_state, bind_proof, returncode, stdout_bytes, stderr_bytes = _launch_agy(
-            repo_root, prompt, agent_name=agent_name, timeout=timeout
+            repo_root, prompt, agent_name=agent_name, timeout=timeout, model=model, effort=effort,
         )
     except (AgyLaunchError, AgentWorkspaceError) as exc:
         print("error: {}".format(exc), file=sys.stderr)
@@ -291,7 +308,10 @@ def _extract_review_text(stdout_text, event_stream=None):
     return event_stream.response
 
 
-def _launch_agy(repo_root, prompt, agent_name=_AGY_AGENT_NAME, timeout=_AGY_TIMEOUT_SECONDS):
+def _launch_agy(
+    repo_root, prompt, agent_name=_AGY_AGENT_NAME, timeout=_AGY_TIMEOUT_SECONDS,
+    model=None, effort=None,
+):
     """Launch `agy -p <prompt> --disable-slash-commands --agent <agent_name>
     --sandbox --new-project --output-format stream-json --log-file
     <ephemeral temp path> --add-dir <repo_root>`, blocking.
@@ -313,6 +333,7 @@ def _launch_agy(repo_root, prompt, agent_name=_AGY_AGENT_NAME, timeout=_AGY_TIME
         cmd = _agy_command(
             prompt, log_file, agent_name=agent_name, add_dir=repo_root,
             print_timeout=_print_timeout_arg(timeout),
+            model=model, effort=effort,
         )
         try:
             # Text=False (raw bytes) so a real fixture-shaped
@@ -341,7 +362,10 @@ def _launch_agy(repo_root, prompt, agent_name=_AGY_AGENT_NAME, timeout=_AGY_TIME
         return bind_state, bind_proof, result.returncode, result.stdout, result.stderr
 
 
-def _agy_command(prompt, log_file, agent_name=_AGY_AGENT_NAME, add_dir=None, print_timeout=None):
+def _agy_command(
+    prompt, log_file, agent_name=_AGY_AGENT_NAME, add_dir=None, print_timeout=None,
+    model=None, effort=None,
+):
     """Build the `agy` command vector shared by both the foreground and
     **background launch** paths — only the `--log-file` target differs
     (an ephemeral temp path for the foreground run, the job's persistent
@@ -384,13 +408,20 @@ def _agy_command(prompt, log_file, agent_name=_AGY_AGENT_NAME, add_dir=None, pri
         cmd += ["--print-timeout", print_timeout]
     if add_dir is not None:
         cmd += ["--add-dir", str(add_dir)]
+    if model:
+        cmd += ["--model", model]
+    if effort:
+        cmd += ["--effort", effort]
     return cmd
 
 
 # --- background launch ------------------------------------------------------
 
 
-def _run_background_review(repo_root, prompt, spawn=_spawn_detached, agent_name=_AGY_AGENT_NAME):
+def _run_background_review(
+    repo_root, prompt, spawn=_spawn_detached, agent_name=_AGY_AGENT_NAME,
+    model=None, effort=None,
+):
     """Launch `agy` detached, writing its output to a persistent
     `--log-file` under the repo's **state dir**, and record the **job**
     immediately — without blocking on the child. `/agy:status` (a separate
@@ -430,6 +461,7 @@ def _run_background_review(repo_root, prompt, spawn=_spawn_detached, agent_name=
     cmd = _agy_command(
         prompt, log_file, agent_name=agent_name, add_dir=repo_root,
         print_timeout=_BACKGROUND_PRINT_TIMEOUT_ARG,
+        model=model, effort=effort,
     )
 
     try:

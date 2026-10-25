@@ -3,12 +3,12 @@
 Use the **Antigravity CLI (`agy`)** from inside Claude Code — for code review, or
 to delegate tasks and track them in the background.
 
-> **Status: pre-alpha (v0.4.0).** All seven commands below are implemented and covered
-> by an offline test suite (480 tests against a fake `agy` on `PATH`, never
+> **Status: pre-alpha (v0.5.0).** All seven commands below are implemented and covered
+> by an offline test suite (488 tests against a fake `agy` on `PATH`, never
 > the real binary — `make check` prints the authoritative count).
 >
 > **All seven commands have been run end to end against a real, authenticated
-> `agy`, re-verified on 1.2.16** (2026-10-03, via `make check-live` / `agy_companion.py setup`):
+> `agy`, re-verified on 1.4.7** (2026-10-25, via `make check-live` / `agy_companion.py setup` / live probes) with Claude Code 2.1.310:
 > `/agy:review` and `/agy:adversarial-review` producing schema-conforming
 > findings with hermetic agents (`excludeDefaultComponents: true`);
 > `/agy:delegate` fresh, `--resume`, and `--background`;
@@ -29,7 +29,7 @@ This is a port of [`openai/codex-plugin-cc`](https://github.com/openai/codex-plu
 ## Installation
 
 1. Install and authenticate the [Antigravity CLI](https://antigravity.google/docs/cli/)
-   (`agy`) — version **1.2.7 or newer** (tested on 1.2.16). `/agy:setup` (below) verifies this for you.
+   (`agy`) — version **1.2.7 or newer** (tested on 1.4.7). `/agy:setup` (below) verifies this for you.
 2. In Claude Code, add this repository as a plugin marketplace and install the
    plugin from it:
    ```
@@ -58,7 +58,7 @@ defects and recorded here so they aren't re-derived:
   command execution path for a directory marketplace like this one.
 - **The cache is real and IS version-keyed**, off
   `.claude-plugin/marketplace.json`'s `metadata.version` /
-  `plugins[].version` (currently `0.4.0`). `claude plugin marketplace
+  `plugins[].version` (currently `0.5.0`). `claude plugin marketplace
   update` alone will **not** refresh a stale cache while that version
   string stays the same — only `/plugin uninstall` followed by `/plugin
   install` does. This is a note about install/update mechanics for anyone
@@ -131,17 +131,18 @@ Run this first, and again after upgrading `agy`. It reports:
   read-only-slash-command probe used for the bind check above, so this is a
   proven answer rather than an assumption from the flags you passed.
 
-### `/agy:review [--dry-run] [--background] [--scope ...] [--base <ref>] [--json]`
+### `/agy:review [--dry-run] [--background] [--scope ...] [--base <ref>] [--model <m>] [--effort <e>] [--timeout <s>] [--json]`
 
 Resolves a review target (auto-detects working-tree changes vs. a branch
 diff, or pass `--scope staged`/`--scope branch --base <ref>` explicitly),
 sizes the change, and sends the diff to `agy` bound to the `agy-review`
 agent. Renders findings as a table with `[P0]`-`[P3]` priorities and an
-overall correctness verdict. `--dry-run` previews the prompt without
-invoking `agy`. `--background` launches detached and returns a job id
-immediately — check it with `/agy:status`, harvest it with `/agy:result`.
+overall correctness verdict. `--model <m>` and `--effort <e>` forward model
+and reasoning effort overrides directly to `agy`. `--dry-run` previews the
+prompt without invoking `agy`. `--background` launches detached and returns
+a job id immediately — check it with `/agy:status`, harvest it with `/agy:result`.
 
-### `/agy:adversarial-review [--dry-run] [--background] [--scope ...] [--base <ref>] [--json] [focus ...]`
+### `/agy:adversarial-review [--dry-run] [--background] [--scope ...] [--base <ref>] [--model <m>] [--effort <e>] [--timeout <s>] [--json] [focus ...]`
 
 A second, steerable review command whose posture is to argue against the
 change rather than validate it — "break confidence in the change, not
@@ -153,9 +154,10 @@ diff to `agy` bound to a different vendored agent,
 `agy-adversarial-review`, whose system prompt is deliberately skeptical: it
 prioritizes auth/permissions/tenant isolation, data loss, rollback safety,
 race conditions, schema drift, and observability gaps over ordinary
-implementation defects, and reports only material findings. Free text after
-the flags is passed through as a **focus** the agent weights heavily without
-narrowing its search to only that area, e.g.:
+implementation defects, and reports only material findings. Pass optional
+`--model <m>` or `--effort <e>` flags to override the underlying model or
+effort level. Free text after the flags is passed through as a **focus**
+the agent weights heavily without narrowing its search to only that area, e.g.:
 
 ```
 /agy:adversarial-review auth and tenant isolation
@@ -238,7 +240,7 @@ would make a still-running, still-quota-spending job invisible.
 
 ## Requirements
  
-- Antigravity CLI (`agy`) **1.2.7+** (tested and re-verified on 1.2.16), installed and authenticated.
+- Antigravity CLI (`agy`) **1.2.7+** (tested and re-verified on 1.4.7, Claude Code 2.1.310), installed and authenticated.
   1.2.7 retired `find_by_name`, `grep_search`, and `list_dir` from the default tool baseline;
   vendored review agents explicitly declare `excludeDefaultComponents: true` and hermetic `tools: []`
   so reviews never inherit ambient workspace skills, rules, or subagents.

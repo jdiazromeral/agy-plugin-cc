@@ -53,7 +53,10 @@ REQUIRED_KEYS = frozenset(
     ["findings", "overall_correctness", "overall_explanation", "overall_confidence_score"]
 )
 
-FALLBACK_RE = re.compile(r'Agent "[^"]+" not found, falling back to default')
+FALLBACK_RE = re.compile(
+    r'(?:Agent "[^"]+" not found, falling back to default|'
+    r'Print mode: unknown agent "[^"]+")'
+)
 CREATED_CONVERSATION_RE = re.compile(r"Created conversation [0-9a-fA-F-]+")
 
 
