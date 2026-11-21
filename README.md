@@ -8,7 +8,7 @@ to delegate tasks and track them in the background.
 > the real binary — `make check` prints the authoritative count).
 >
 > **All seven commands have been run end to end against a real, authenticated
-> `agy`, re-verified on 1.4.7** (2026-10-25, via `make check-live` / `agy_companion.py setup` / live probes) with Claude Code 2.1.310:
+> `agy`, re-verified on 1.5.14** (2026-11-21, via `make check-live` / `agy_companion.py setup` / live probes) with Claude Code 2.1.330:
 > `/agy:review` and `/agy:adversarial-review` producing schema-conforming
 > findings with hermetic agents (`excludeDefaultComponents: true`);
 > `/agy:delegate` fresh, `--resume`, and `--background`;
@@ -29,7 +29,7 @@ This is a port of [`openai/codex-plugin-cc`](https://github.com/openai/codex-plu
 ## Installation
 
 1. Install and authenticate the [Antigravity CLI](https://antigravity.google/docs/cli/)
-   (`agy`) — version **1.2.7 or newer** (tested on 1.4.7). `/agy:setup` (below) verifies this for you.
+   (`agy`) — version **1.2.7 or newer** (tested on 1.5.14). `/agy:setup` (below) verifies this for you.
 2. In Claude Code, add this repository as a plugin marketplace and install the
    plugin from it:
    ```
@@ -240,7 +240,7 @@ would make a still-running, still-quota-spending job invisible.
 
 ## Requirements
  
-- Antigravity CLI (`agy`) **1.2.7+** (tested and re-verified on 1.4.7, Claude Code 2.1.310), installed and authenticated.
+- Antigravity CLI (`agy`) **1.2.7+** (tested and re-verified on 1.5.14, Claude Code 2.1.330), installed and authenticated.
   1.2.7 retired `find_by_name`, `grep_search`, and `list_dir` from the default tool baseline;
   vendored review agents explicitly declare `excludeDefaultComponents: true` and hermetic `tools: []`
   so reviews never inherit ambient workspace skills, rules, or subagents.

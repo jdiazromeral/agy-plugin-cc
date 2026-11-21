@@ -97,7 +97,7 @@ Verified empirically against `agy` 1.1.6 on 2026-07-24. Full evidence lives in
   line number.
 - **agy 1.4.1+ hard-fails on unknown agents instead of falling back to default.**
   In agy 1.1.x-1.3.x, an unresolvable `--agent` value logged `Agent "<name>" not found, falling back to default`
-  and completed with exit code 0. In agy 1.4.1+ (re-verified on 1.4.7), agy hard-fails with exit code 1,
+  and completed with exit code 0. In agy 1.4.1+ (re-verified on 1.5.14), agy hard-fails with exit code 1,
   prints `error: unknown agent "<name>"` to stderr, and logs `printmode.go:94] Print mode: unknown agent "<name>"`.
   `FALLBACK_RE` in `companion.agy_log` matches both the legacy fallback and the modern unknown agent trace,
   ensuring `_bind_check` correctly returns `not_bound` across all agy versions.
