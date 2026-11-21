@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "agy",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "Use agy from Claude Code to review code or delegate tasks.",
   "icon": ".claude-plugin/icon.png",
   "author": {

@@ -3,7 +3,7 @@
 Use the **Antigravity CLI (`agy`)** from inside Claude Code — for code review, or
 to delegate tasks and track them in the background.
 
-> **Status: pre-alpha (v0.6.0).** All seven commands below are implemented and covered
+> **Status: pre-alpha (v0.6.1).** All seven commands below are implemented and covered
 > by an offline test suite (499 tests against a fake `agy` on `PATH`, never
 > the real binary — `make check` prints the authoritative count).
 >
