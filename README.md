@@ -3,8 +3,8 @@
 Use the **Antigravity CLI (`agy`)** from inside Claude Code — for code review, or
 to delegate tasks and track them in the background.
 
-> **Status: pre-alpha (v0.5.0).** All seven commands below are implemented and covered
-> by an offline test suite (488 tests against a fake `agy` on `PATH`, never
+> **Status: pre-alpha (v0.6.0).** All seven commands below are implemented and covered
+> by an offline test suite (499 tests against a fake `agy` on `PATH`, never
 > the real binary — `make check` prints the authoritative count).
 >
 > **All seven commands have been run end to end against a real, authenticated
@@ -15,7 +15,8 @@ to delegate tasks and track them in the background.
 > `/agy:status` against a job both mid-flight and finished; `/agy:result`
 > harvesting a real stored result; and `/agy:cancel` killing a real
 > mid-stream process, verified dead by PID. Includes Claude Code session
-> lifecycle hooks (`SessionStart`/`SessionEnd`), deterministic `evals/` test cases (`make check-evals`),
+> lifecycle hooks (`SessionStart`/`SessionEnd`), the optional Stop-Time Review Gate (`Stop` hook),
+> internal `agy-result-handling` skill, deterministic `evals/` test cases (`make check-evals`),
 > and event-stream fidelity for `denied_actions` and `command_result`.
 > The evidence is committed, not asserted — see `docs/review-schema-verdict.md`
 > and the captures under `tests/fixtures/`, each with its own PROVENANCE note.
@@ -94,7 +95,7 @@ repo the job was launched against. As with `--add-dir`, this bounds `agy`'s
 *writes*; it does not bound its reads, since `agy` walks up to parent
 `AGENTS.md`/`CONTEXT.md` regardless of cwd.
 
-Deferred to v2: the Stop review-gate hook. Not planned: `/transfer` — Codex
+Includes the optional Stop-Time Review Gate hook (toggled via `/agy:setup --enable-review-gate|--disable-review-gate`). Not planned: `/transfer` — Codex
 does it with a protocol-level `externalAgentConfig/import` that `agy` has no
 equivalent for.
 

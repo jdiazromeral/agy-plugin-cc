@@ -1,6 +1,6 @@
 ---
-description: Check whether agy is installed, authenticated, and which agents are registered
-argument-hint: '[--json]'
+description: Check whether agy is installed, authenticated, and which agents are registered, or toggle the stop-time review gate
+argument-hint: '[--enable-review-gate|--disable-review-gate] [--json]'
 allowed-tools: Bash(python3:*)
 ---
 

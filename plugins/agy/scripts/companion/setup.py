@@ -15,8 +15,11 @@ from pathlib import Path
 
 from companion import agent_workspace
 from companion import probe
+from companion import repo as repo_arg
+from companion import state
 from companion.agent_workspace import AgentWorkspaceError
 from companion.agy_log import _bind_check
+from companion.git import ensure_git_repository, GitTargetError
 from companion.launch import _print_timeout_arg
 
 HELP = "Check whether agy is installed, authenticated, and which agents are registered."
@@ -121,6 +124,17 @@ _PROBE_UNSUPPORTED_DETAIL = (
 
 
 def add_arguments(parser):
+    repo_arg.add_repo_argument(parser)
+    parser.add_argument(
+        "--enable-review-gate",
+        action="store_true",
+        help="Enable the stop-time review gate for this repository.",
+    )
+    parser.add_argument(
+        "--disable-review-gate",
+        action="store_true",
+        help="Disable the stop-time review gate for this repository.",
+    )
     parser.add_argument(
         "--json",
         action="store_true",
@@ -129,7 +143,24 @@ def add_arguments(parser):
 
 
 def run(args):
-    report = _doctor()
+    repo_root = None
+    try:
+        repo_root = ensure_git_repository(repo_arg.resolve_repo(args))
+    except (GitTargetError, Exception):
+        repo_root = None
+
+    if getattr(args, "enable_review_gate", False) and getattr(args, "disable_review_gate", False):
+        import sys
+        sys.stderr.write("Cannot specify both --enable-review-gate and --disable-review-gate.\n")
+        return 1
+
+    if repo_root:
+        if getattr(args, "enable_review_gate", False):
+            state.set_config(repo_root, "stop_review_gate", True)
+        elif getattr(args, "disable_review_gate", False):
+            state.set_config(repo_root, "stop_review_gate", False)
+
+    report = _doctor(repo_root=repo_root)
     if args.json:
         print(json.dumps(report))
     else:
@@ -137,7 +168,13 @@ def run(args):
     return 0
 
 
-def _doctor():
+def _doctor(repo_root=None):
+    gate_state = "disabled (default)"
+    if repo_root:
+        cfg = state.get_config(repo_root)
+        if cfg.get("stop_review_gate", False):
+            gate_state = "enabled"
+
     agy_path = shutil.which("agy")
     if agy_path is None:
         detail = "agy is not installed"
@@ -151,6 +188,7 @@ def _doctor():
             "auth": {"state": "unknown", "detail": detail},
             "agents": {"state": "error", "names": [], "detail": detail},
             "review_bind": {"state": "skipped", "detail": detail},
+            "review_gate": {"state": gate_state, "enabled": gate_state == "enabled"},
             "stream_json": {"state": "skipped", "detail": detail},
             "model_forwarding": {"state": "skipped", "detail": detail},
             "quota": {"state": "skipped", "groups": None, "detail": detail},
@@ -170,6 +208,7 @@ def _doctor():
         "auth": auth,
         "agents": agents,
         "review_bind": review_bind,
+        "review_gate": {"state": gate_state, "enabled": gate_state == "enabled"},
         "stream_json": _stream_json_state(version, supported),
         "model_forwarding": _probe_model_forwarding(agy_path, supported),
         "quota": _probe_quota(agy_path, supported),
@@ -739,6 +778,10 @@ def _render_human(report):
         lines.append("quota (/usage): skipped ({})".format(quota["detail"]))
     else:
         lines.append("quota (/usage): could not determine ({})".format(quota["detail"]))
+
+    review_gate = report.get("review_gate")
+    if review_gate:
+        lines.append("review gate: {}".format(review_gate.get("state", "disabled (default)")))
 
     return "\n".join(lines)
 

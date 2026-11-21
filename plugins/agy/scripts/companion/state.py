@@ -122,8 +122,12 @@ def generate_job_id(prefix="job"):
 # --- state.json round trip --------------------------------------------------
 
 
+def _default_config():
+    return {"stop_review_gate": False}
+
+
 def _default_state():
-    return {"version": STATE_VERSION, "jobs": []}
+    return {"version": STATE_VERSION, "config": _default_config(), "jobs": []}
 
 
 def load_state(repo_root):
@@ -135,7 +139,15 @@ def load_state(repo_root):
     except (OSError, json.JSONDecodeError):
         return _default_state()
     jobs = parsed.get("jobs") if isinstance(parsed, dict) else None
-    return {"version": STATE_VERSION, "jobs": jobs if isinstance(jobs, list) else []}
+    config = parsed.get("config") if isinstance(parsed, dict) else None
+    resolved_config = dict(_default_config())
+    if isinstance(config, dict):
+        resolved_config.update(config)
+    return {
+        "version": STATE_VERSION,
+        "config": resolved_config,
+        "jobs": jobs if isinstance(jobs, list) else [],
+    }
 
 
 def _prune_jobs(jobs):
@@ -146,11 +158,27 @@ def _prune_jobs(jobs):
 def save_state(repo_root, state):
     ensure_state_dir(repo_root)
     next_jobs = _prune_jobs(state.get("jobs", []))
-    next_state = {"version": STATE_VERSION, "jobs": next_jobs}
+    config = state.get("config") if isinstance(state.get("config"), dict) else _default_config()
+    next_state = {"version": STATE_VERSION, "config": config, "jobs": next_jobs}
     resolve_state_file(repo_root).write_text(
         json.dumps(next_state, indent=2) + "\n", encoding="utf-8"
     )
     return next_state
+
+
+def get_config(repo_root):
+    return load_state(repo_root)["config"]
+
+
+def set_config(repo_root, key, value):
+    def mutate(state):
+        config = state.get("config")
+        if not isinstance(config, dict):
+            config = dict(_default_config())
+        config[key] = value
+        state["config"] = config
+
+    return update_state(repo_root, mutate)
 
 
 def update_state(repo_root, mutate):

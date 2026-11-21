@@ -30,6 +30,11 @@ the Apache License, Version 2.0 (https://www.apache.org/licenses/LICENSE-2.0):
   clone of that repository. Its output schema deliberately differs from
   upstream's own prompt (see that file's PROVENANCE note) to stay compatible
   with the parsing this repo already shares with `agy-review`.
+- `plugins/agy/skills/agy-result-handling/SKILL.md` and the stop-time review
+  gate prompt and hook logic, adapted from `openai/codex-plugin-cc`'s
+  `plugins/codex/skills/codex-result-handling/SKILL.md`,
+  `plugins/codex/prompts/stop-review-gate.md`, and
+  `plugins/codex/scripts/stop-review-gate-hook.mjs`.
 
 `agy-plugin-cc` is itself a deliberate port of `openai/codex-plugin-cc`
 (https://github.com/openai/codex-plugin-cc), distributed under the Apache
