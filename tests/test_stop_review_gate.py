@@ -108,7 +108,7 @@ class StopReviewGateHookLogicTest(unittest.TestCase):
                         self.assertEqual(mock_rev.call_count, 0)
                         self.assertEqual(mock_dirty.call_count, 0)
         res = json.loads(out.getvalue())
-        self.assertEqual(res["decision"], "allow")
+        self.assertEqual(res["decision"], "approve")
 
     def test_gate_enabled_but_git_clean_allows_without_review(self):
         repo_dir = self._init_repo()
@@ -121,7 +121,7 @@ class StopReviewGateHookLogicTest(unittest.TestCase):
                     stop_review_gate.main()
                     self.assertEqual(mock_rev.call_count, 0)
         res = json.loads(out.getvalue())
-        self.assertEqual(res["decision"], "allow")
+        self.assertEqual(res["decision"], "approve")
 
     def test_continuation_active_allows_immediately(self):
         repo_dir = self._init_repo()
@@ -135,7 +135,7 @@ class StopReviewGateHookLogicTest(unittest.TestCase):
                     stop_review_gate.main()
                     self.assertEqual(mock_rev.call_count, 0)
         res = json.loads(out.getvalue())
-        self.assertEqual(res["decision"], "allow")
+        self.assertEqual(res["decision"], "approve")
 
     def test_dirty_repo_blocks_when_agy_reports_block(self):
         repo_dir = self._init_repo()
@@ -177,7 +177,7 @@ class StopReviewGateHookLogicTest(unittest.TestCase):
                     stop_review_gate.main()
                     self.assertEqual(mock_rev.call_count, 0)
         res2 = json.loads(out2.getvalue())
-        self.assertEqual(res2["decision"], "allow")
+        self.assertEqual(res2["decision"], "approve")
 
     def test_run_stop_review_parsing(self):
         repo_dir = self._init_repo()

@@ -29,6 +29,10 @@ _PROMPT_TEMPLATE_PATH = _SCRIPTS_DIR.parent / "prompts" / "stop-review-gate.md"
 
 
 def _emit_decision(decision, reason=None):
+    # Claude Code's Stop-hook schema only accepts "approve" | "block" in the
+    # top-level `decision` field. Internally we say "allow"; translate here.
+    if decision == "allow":
+        decision = "approve"
     payload = {"decision": decision}
     if reason:
         payload["reason"] = reason
